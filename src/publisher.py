@@ -53,7 +53,6 @@ def _load_state():
 
 
 def _clean_body(body):
-    # 기존 크레딧 문구가 남아 있더라도 발행 전에 제거한다.
     credit_patterns = [
         r"Photo\s+by\s+[^<\n]+?\s+via\s+Pexels",
         r"Photo\s+by\s+[^<\n]+?\s+via\s+Pixabay",
@@ -101,27 +100,70 @@ def _fill_tags(page, tags):
         page.wait_for_timeout(150)
 
 
+def _visible_locator(page, selector):
+    """Return the first visible match; Tistory often keeps a hidden duplicate toolbar."""
+    loc = page.locator(selector)
+    for i in range(loc.count()):
+        candidate = loc.nth(i)
+        try:
+            if candidate.is_visible(timeout=500):
+                return candidate
+        except Exception:
+            continue
+    return None
+
+
 def _open_photo_upload(page):
-    # Tistory 신에디터의 파일 input을 직접 활성화하거나 첨부→사진 메뉴를 연다.
-    if page.locator("#openFile").count():
+    # Tistory's toolbar can contain hidden duplicate attach buttons. Always target a visible one.
+    file_input = page.locator("#openFile, input[type='file']").first
+    if file_input.count() and file_input.is_visible(timeout=500):
         return
-    attach = page.locator('button[class*="attach"], .btn_file, [aria-label*="첨부"]').first
-    if attach.count():
-        attach.click()
+
+    selectors = [
+        '[aria-label="첨부"]:visible',
+        'button[class*="attach"]:visible',
+        '.btn_file:visible',
+        '[role="button"][aria-label*="첨부"]:visible',
+    ]
+    attach = None
+    for selector in selectors:
+        attach = _visible_locator(page, selector)
+        if attach:
+            break
+
+    if attach:
+        attach.scroll_into_view_if_needed()
+        attach.click(timeout=10000)
         page.wait_for_timeout(500)
     else:
-        for btn in page.locator("button").all():
+        # Last resort: find a visible button whose accessible label/text contains 첨부.
+        for i in range(page.locator("button, [role='button']").count()):
+            btn = page.locator("button, [role='button']").nth(i)
             try:
-                if "첨부" in (btn.inner_text(timeout=500) or "") or "첨부" in (btn.get_attribute("aria-label") or ""):
-                    btn.click()
+                if not btn.is_visible(timeout=300):
+                    continue
+                label = (btn.get_attribute("aria-label") or "") + " " + (btn.inner_text(timeout=300) or "")
+                if "첨부" in label:
+                    btn.scroll_into_view_if_needed()
+                    btn.click(timeout=10000)
                     page.wait_for_timeout(500)
                     break
             except Exception:
                 pass
-    menu = page.locator('[role="menuitem"], .mce-menu-item').filter(has_text="사진").first
-    if menu.count():
-        menu.click()
-        page.wait_for_timeout(500)
+
+    menu = _visible_locator(page, '[role="menuitem"], .mce-menu-item')
+    if menu:
+        try:
+            # Prefer the visible menu item labelled 사진.
+            candidates = page.locator('[role="menuitem"], .mce-menu-item')
+            for i in range(candidates.count()):
+                item = candidates.nth(i)
+                if item.is_visible(timeout=300) and "사진" in (item.inner_text(timeout=300) or ""):
+                    item.click(timeout=10000)
+                    page.wait_for_timeout(500)
+                    break
+        except Exception:
+            pass
 
 
 def _upload_images(page, image_paths):
@@ -136,8 +178,7 @@ def _upload_images(page, image_paths):
     for path in paths:
         _open_photo_upload(page)
         file_input = page.locator("#openFile, input[type='file']").first
-        if not file_input.count():
-            raise RuntimeError("Tistory image upload file input was not found")
+        file_input.wait_for(state="attached", timeout=10000)
         file_input.set_input_files(path)
         page.wait_for_timeout(2500)
 
@@ -190,13 +231,12 @@ def _set_representative_image(page):
         "[class*='representImg']",
     ]
     for selector in selectors:
-        btn = page.locator(selector).first
-        if btn.count():
+        btn = _visible_locator(page, selector)
+        if btn:
             try:
-                if btn.is_visible(timeout=1000):
-                    btn.click()
-                    page.wait_for_timeout(500)
-                    return True
+                btn.click(timeout=5000)
+                page.wait_for_timeout(500)
+                return True
             except Exception:
                 pass
     return False
