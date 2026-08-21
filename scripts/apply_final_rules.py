@@ -9,9 +9,9 @@ old_table = "- 필요하면 비교·계산·전망을 <table> HTML로 정리하�
 new_table = old_table + "\n- 표의 모든 <tr>은 동일한 열 개수를 유지하고 rowspan/colspan을 사용하지 말 것. 각 셀은 짧은 문구로 작성하고 셀 안에 이미지·이미지 placeholder를 절대 넣지 말 것. 표가 길어지면 문장을 줄여서 셀 높이를 과도하게 키우지 말 것."
 text = text.replace(old_table, new_table)
 
-# Closing heading and disclaimer styling.
+# The closing section is intentionally disabled. Keep the separate disclaimer/footer area intact.
 old_close = "- 마지막에는 정확히 <h2>포스팅을 마치며...</h2>를 넣고 독자가 기억할 핵심을 간결하게 정리"
-new_close = "- 마지막에는 정확히 <h2>📌 포스팅을 마치며...</h2>를 넣고 독자가 기억할 핵심을 간결하게 정리"
+new_close = "- '포스팅을 마치며...' 제목이나 마무리 섹션을 본문에 만들지 말 것. 별도의 하단 면책 문구와 블로그 소개 영역은 유지할 것."
 text = text.replace(old_close, new_close)
 
 old_disclaimer = "- 마지막에 정확한 면책 문구를 넣기: <p><em>본 콘텐츠는 정보 제공을 위한 것이며, 투자·세무 판단의 근거가 되는 조언이 아닙니다.</em></p>"
@@ -65,13 +65,38 @@ def finalize_article_body(body):
 
     body = re.sub(r"<table\b.*?</table>", clean_table, body, flags=re.I | re.S)
 
-    # Enforce the requested closing heading and add a visual emoji.
-    body = re.sub(r"<h2([^>]*)>\s*(?:📌\s*)?(?:핵심 정리|마무리|정리|포스팅을 마치며\.\.\.)\s*</h2>", r"<h2\1>📌 포스팅을 마치며...</h2>", body, flags=re.I)
-    if not re.search(r"<h2[^>]*>\s*📌\s*포스팅을 마치며\.\.\.\s*</h2>", body, flags=re.I):
-        body += "<h2>📌 포스팅을 마치며...</h2><p>핵심 내용을 다시 확인하고 자신의 투자 상황에 맞는 대응 전략을 점검해보세요.</p>"
+    # Completely remove every generated "포스팅을 마치며..." section.
+    # Preserve the separate disclaimer/footer area that follows it.
+    closing_heading = re.compile(
+        r"<h[1-6][^>]*>\s*(?:📌\s*)?(?:핵심 정리|마무리|정리|포스팅을 마치며\.\.\.)\s*</h[1-6]>",
+        flags=re.I,
+    )
+    disclaimer_marker = re.compile(
+        r"(?=(?:<[^>]+>\s*)*(?:※\s*)?본 콘텐츠는 정보 제공을 위한 것이며, 투자·세무 판단의 근거가 되는 조언이 아닙니다\.)",
+        flags=re.I,
+    )
 
-    # Disclaimer always begins with a visible symbol.
-    body = re.sub(r"(?:※\s*)?본 콘텐츠는 정보 제공을 위한 것이며, 투자·세무 판단의 근거가 되는 조언이 아닙니다\.", "※ 본 콘텐츠는 정보 제공을 위한 것이며, 투자·세무 판단의 근거가 되는 조언이 아닙니다.", body)
+    while True:
+        match = closing_heading.search(body)
+        if not match:
+            break
+        before = body[:match.start()]
+        after = body[match.end():]
+        disclaimer = disclaimer_marker.search(after)
+        if disclaimer:
+            body = before + after[disclaimer.start():]
+        else:
+            body = before
+
+    # Remove any stray duplicate closing text that is not wrapped in a heading.
+    body = re.sub(r"<p[^>]*>\s*(?:📌\s*)?포스팅을 마치며\.\.\.\s*</p>", "", body, flags=re.I)
+
+    # Disclaimer always begins with a visible symbol and remains outside the removed closing section.
+    body = re.sub(
+        r"(?:※\s*)?본 콘텐츠는 정보 제공을 위한 것이며, 투자·세무 판단의 근거가 되는 조언이 아닙니다\.",
+        "※ 본 콘텐츠는 정보 제공을 위한 것이며, 투자·세무 판단의 근거가 되는 조언이 아닙니다.",
+        body,
+    )
     if "본 콘텐츠는 정보 제공을 위한 것" not in body:
         body += "<p><em>※ 본 콘텐츠는 정보 제공을 위한 것이며, 투자·세무 판단의 근거가 되는 조언이 아닙니다.</em></p>"
 
