@@ -1,4 +1,4 @@
-import hashlib, json, os, random
+import hashlib, json, os, random, time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import feedparser
@@ -99,13 +99,19 @@ def add_images(body, urls, credits):
     return out
 
 
-def random_slot(day, window):
+def wait_for_random_slot(day, window):
     _, sh, sm, eh, em = window
     start = datetime(day.year, day.month, day.day, sh, sm, tzinfo=KST)
     end = datetime(day.year, day.month, day.day, eh, em, tzinfo=KST)
     seconds = int((end - start).total_seconds())
-    seed = int(hashlib.sha256(f"{day.isoformat()}-{window[0]}".encode()).hexdigest()[:8], 16)
-    return start + timedelta(seconds=random.Random(seed).randint(0, seconds))
+    target = start + timedelta(seconds=random.SystemRandom().randint(0, seconds))
+    now = datetime.now(KST)
+    delay = (target - now).total_seconds()
+    if delay > 0:
+        print(f"WAITING_FOR_RANDOM_SLOT={target.isoformat()}")
+        time.sleep(delay)
+    actual = datetime.now(KST)
+    return target if actual <= end + timedelta(minutes=5) else actual
 
 
 def main():
@@ -123,9 +129,10 @@ def main():
         if index < 0 or index >= len(topics):
             raise RuntimeError(f"POST_INDEX must be 0, 1, or 2; got {POST_INDEX}")
         topic = topics[index]
+        wait_for_random_slot(now.date(), WINDOWS[index])
 
     post = article(topic)
-    slot = random_slot(now.date(), WINDOWS[index])
+    slot = datetime.now(KST)
     output_post = {
         "slot_kst": slot.isoformat(),
         "title": post["title"],
