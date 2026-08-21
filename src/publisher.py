@@ -6,13 +6,16 @@ from playwright.sync_api import sync_playwright
 
 
 def _load_state():
-    state = os.environ.get("TISTORY_STORAGE_STATE")
+    parts = [os.environ.get(f"TISTORY_STORAGE_STATE_{i}", "") for i in range(1, 4)]
+    state = "".join(parts).strip()
     if not state:
-        raise RuntimeError("TISTORY_STORAGE_STATE is required for publishing")
+        state = os.environ.get("TISTORY_STORAGE_STATE", "").strip()
+    if not state:
+        raise RuntimeError("TISTORY_STORAGE_STATE_1/2/3 are required for publishing")
     try:
         raw = gzip.decompress(base64.b64decode(state)).decode("utf-8")
     except Exception as exc:
-        raise RuntimeError("Invalid TISTORY_STORAGE_STATE: expected gzip+base64 data") from exc
+        raise RuntimeError("Invalid Tistory storage state: expected gzip+base64 data") from exc
     state_path = Path("/tmp/tistory-state.json")
     state_path.write_text(raw, encoding="utf-8")
     return state_path
@@ -40,7 +43,7 @@ def publish(post):
         page.goto(f"https://{blog}.tistory.com/manage/newpost/?type=post", wait_until="domcontentloaded", timeout=60000)
         page.wait_for_timeout(2500)
         if "login" in page.url.lower() or "accounts.kakao" in page.url.lower():
-            raise RuntimeError("Tistory session expired; refresh TISTORY_STORAGE_STATE")
+            raise RuntimeError("Tistory session expired; refresh Tistory storage state")
         title = page.locator("#post-title-inp, input[placeholder*='제목'], input[name='title']").first
         title.wait_for(state="visible", timeout=20000)
         title.fill(post["title"])
