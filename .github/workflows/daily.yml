@@ -2,14 +2,19 @@ name: Kunnotes Daily Publisher
 
 on:
   schedule:
-    - cron: '0 22 * * *'
+    - cron: '35 7 * * *'
+      timezone: 'Asia/Seoul'
+    - cron: '5 12 * * *'
+      timezone: 'Asia/Seoul'
+    - cron: '5 18 * * *'
+      timezone: 'Asia/Seoul'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  generate:
+  publish:
     runs-on: ubuntu-latest
     env:
       TZ: Asia/Seoul
@@ -19,20 +24,29 @@ jobs:
       TISTORY_STORAGE_STATE_2: ${{ secrets.TISTORY_STORAGE_STATE_2 }}
       TISTORY_STORAGE_STATE_3: ${{ secrets.TISTORY_STORAGE_STATE_3 }}
       OPENAI_MODEL: gpt-5.2
-      DRY_RUN: 'true'
+      DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || 'true' }}
+      POST_INDEX: '0'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
+      - name: Select scheduled post
+        if: github.event_name == 'schedule'
+        run: |
+          case "${{ github.event.schedule }}" in
+            '35 7 * * *') echo 'POST_INDEX=0' >> "$GITHUB_ENV" ;;
+            '5 12 * * *') echo 'POST_INDEX=1' >> "$GITHUB_ENV" ;;
+            '5 18 * * *') echo 'POST_INDEX=2' >> "$GITHUB_ENV" ;;
+            *) echo 'POST_INDEX=0' >> "$GITHUB_ENV" ;;
+          esac
       - run: python src/main.py
       - uses: actions/upload-artifact@v4
         with:
-          name: daily-posts
+          name: daily-post-${{ github.run_id }}
           path: out/today.json
           retention-days: 7
 
-# Publishing is intentionally disabled in this first deployment.
-# After the generated drafts are reviewed, add a second workflow/job that
-# invokes src/publisher.py with DRY_RUN=false and a refreshed session secret.
+# Scheduled runs publish one post at 07:35, 12:05, and 18:05 Asia/Seoul.
+# Manual runs stay in DRY_RUN mode for safety.
