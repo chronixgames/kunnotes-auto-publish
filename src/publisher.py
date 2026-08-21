@@ -1,4 +1,5 @@
 import base64
+import gzip
 import os
 from pathlib import Path
 from playwright.sync_api import sync_playwright
@@ -8,7 +9,10 @@ def _load_state():
     state = os.environ.get("TISTORY_STORAGE_STATE")
     if not state:
         raise RuntimeError("TISTORY_STORAGE_STATE is required for publishing")
-    raw = base64.b64decode(state).decode("utf-8")
+    try:
+        raw = gzip.decompress(base64.b64decode(state)).decode("utf-8")
+    except Exception as exc:
+        raise RuntimeError("Invalid TISTORY_STORAGE_STATE: expected gzip+base64 data") from exc
     state_path = Path("/tmp/tistory-state.json")
     state_path.write_text(raw, encoding="utf-8")
     return state_path
