@@ -15,6 +15,21 @@ on:
         required: true
         default: false
         type: boolean
+      topic:
+        description: 'Optional topic for a one-off manual post'
+        required: false
+        default: ''
+        type: string
+      image_urls:
+        description: 'Comma-separated direct image URLs'
+        required: false
+        default: 'https://images.pexels.com/photos/7691664/pexels-photo-7691664.jpeg?auto=compress&cs=tinysrgb&w=1200,https://images.pexels.com/photos/6801681/pexels-photo-6801681.jpeg?auto=compress&cs=tinysrgb&w=1200,https://images.pexels.com/photos/7567591/pexels-photo-7567591.jpeg?auto=compress&cs=tinysrgb&w=1200'
+        type: string
+      image_credits:
+        description: 'Optional image credits separated by |'
+        required: false
+        default: 'Photo by Yan Krukau via Pexels|Photo by Hanna Pad via Pexels|Photo by Tima Miroshnichenko via Pexels'
+        type: string
 
 permissions:
   contents: read
@@ -32,6 +47,9 @@ jobs:
       OPENAI_MODEL: gpt-5.2
       DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || (inputs.publish == true && 'false' || 'true') }}
       POST_INDEX: '0'
+      FORCE_TOPIC: ${{ inputs.topic }}
+      IMAGE_URLS: ${{ inputs.image_urls }}
+      IMAGE_CREDITS: ${{ inputs.image_credits }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
