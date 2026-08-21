@@ -15,7 +15,9 @@ jobs:
       TZ: Asia/Seoul
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       TISTORY_BLOG_NAME: ${{ secrets.TISTORY_BLOG_NAME }}
-      TISTORY_STORAGE_STATE: ${{ secrets.TISTORY_STORAGE_STATE }}
+      TISTORY_STORAGE_STATE_1: ${{ secrets.TISTORY_STORAGE_STATE_1 }}
+      TISTORY_STORAGE_STATE_2: ${{ secrets.TISTORY_STORAGE_STATE_2 }}
+      TISTORY_STORAGE_STATE_3: ${{ secrets.TISTORY_STORAGE_STATE_3 }}
       OPENAI_MODEL: gpt-5.2
       DRY_RUN: 'true'
     steps:
