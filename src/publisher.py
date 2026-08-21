@@ -66,6 +66,22 @@ def _fill_body(page, body):
     raise RuntimeError("Tistory body editor was not found")
 
 
+def _fill_tags(page, tags):
+    if not tags:
+        return
+    tag_input = page.locator("#tagText, input[placeholder*='태그'], input[placeholder*='tag']").first
+    if not tag_input.count():
+        raise RuntimeError("Tistory tag input was not found")
+    tag_input.wait_for(state="visible", timeout=10000)
+    for tag in tags[:10]:
+        tag = str(tag).lstrip("#").strip()
+        if not tag:
+            continue
+        tag_input.fill(tag)
+        page.keyboard.press("Enter")
+        page.wait_for_timeout(150)
+
+
 def publish(post):
     state_path = _load_state()
     blog = os.environ.get("TISTORY_BLOG_NAME", "kunnotes")
@@ -81,6 +97,7 @@ def publish(post):
         title.wait_for(state="visible", timeout=20000)
         title.fill(post["title"])
         _fill_body(page, post["body"])
+        _fill_tags(page, post.get("tags", []))
 
         layer = page.locator("#publish-layer-btn").first
         if layer.count():
