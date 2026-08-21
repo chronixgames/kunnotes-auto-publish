@@ -1,5 +1,7 @@
 import base64
+import binascii
 import gzip
+import json
 import os
 from pathlib import Path
 from playwright.sync_api import sync_playwright
@@ -12,10 +14,33 @@ def _load_state():
         state = os.environ.get("TISTORY_STORAGE_STATE", "").strip()
     if not state:
         raise RuntimeError("TISTORY_STORAGE_STATE_1/2/3 are required for publishing")
+
+    compact = "".join(state.split())
+    raw = None
+    errors = []
+
     try:
-        raw = gzip.decompress(base64.b64decode(state)).decode("utf-8")
-    except Exception as exc:
-        raise RuntimeError("Invalid Tistory storage state: expected gzip+base64 data") from exc
+        decoded = base64.b64decode(compact + "=" * (-len(compact) % 4), validate=False)
+        if decoded[:2] == b"\x1f\x8b":
+            raw = gzip.decompress(decoded).decode("utf-8")
+        else:
+            errors.append(f"decoded data is not gzip (prefix={decoded[:8].hex()})")
+    except (binascii.Error, ValueError, OSError, EOFError, UnicodeDecodeError) as exc:
+        errors.append(f"gzip+base64 decode failed: {exc}")
+
+    if raw is None and compact.startswith("{"):
+        try:
+            json.loads(compact)
+            raw = compact
+        except json.JSONDecodeError as exc:
+            errors.append(f"plain JSON parse failed: {exc}")
+
+    if raw is None:
+        raise RuntimeError(
+            "Invalid Tistory storage state. Expected gzip+base64 data (or plain JSON). "
+            f"Combined length={len(compact)}. " + "; ".join(errors)
+        )
+
     state_path = Path("/tmp/tistory-state.json")
     state_path.write_text(raw, encoding="utf-8")
     return state_path
