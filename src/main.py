@@ -1,4 +1,4 @@
-import base64, hashlib, json, os, random, re
+import hashlib, json, os, random
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import feedparser
@@ -6,7 +6,6 @@ from openai import OpenAI
 from publisher import publish
 
 KST = ZoneInfo("Asia/Seoul")
-BLOG = os.getenv("TISTORY_BLOG_NAME", "kunnotes")
 DRY_RUN = os.getenv("DRY_RUN", "true").lower() == "true"
 POST_INDEX = os.getenv("POST_INDEX", "0")
 FORCE_TOPIC = os.getenv("FORCE_TOPIC", "").strip()
@@ -73,21 +72,20 @@ def article(topic):
     post = json.loads(text[text.find("{"):text.rfind("}") + 1])
     post["body"] = add_images(post["body"], IMAGE_URLS, IMAGE_CREDITS)
     tags = [str(t).lstrip("#").strip() for t in post.get("tags", [])][:10]
-    while len(tags) < 10:
-        defaults = ["재테크", "투자", "배당투자", "주식투자", "현금흐름", "자산관리", "경제공부", "투자전략", "재테크정보", "금융정보"]
-        candidate = defaults[len(tags)]
+    defaults = ["재테크", "투자", "배당투자", "주식투자", "현금흐름", "자산관리", "경제공부", "투자전략", "재테크정보", "금융정보"]
+    for candidate in defaults:
+        if len(tags) >= 10:
+            break
         if candidate not in tags:
             tags.append(candidate)
-    post["tags"] = tags
-    hashtag_line = " ".join(f"#{t}" for t in tags)
-    if hashtag_line not in post["body"]:
+    post["tags"] = tags[:10]
+    hashtag_line = " ".join(f"#{t}" for t in post["tags"])
+    if not hashtag_line.replace(" ", "") in post["body"].replace(" ", ""):
         post["body"] += f"<p><strong>관련 해시태그</strong><br>{hashtag_line}</p>"
     return post
 
 
 def add_images(body, urls, credits):
-    if not urls:
-        return body.replace("<!--IMAGE1-->", "").replace("<!--IMAGE2-->", "").replace("<!--IMAGE3-->", "")
     out = body
     for i, url in enumerate(urls[:3], 1):
         credit = credits[i - 1] if i - 1 < len(credits) else ""
@@ -110,17 +108,16 @@ def random_slot(day, window):
 
 def main():
     now = datetime.now(KST)
-    items = fetch_items()
-    topics = choose_topics(items) if not FORCE_TOPIC else []
-
-    try:
-        index = int(POST_INDEX)
-    except ValueError:
-        index = 0
-
     if FORCE_TOPIC:
         topic = {"title": FORCE_TOPIC, "angle": "한국 투자자 관점의 실전형 재테크 가이드", "source_url": ""}
+        index = 0
     else:
+        items = fetch_items()
+        topics = choose_topics(items)
+        try:
+            index = int(POST_INDEX)
+        except ValueError:
+            index = 0
         if index < 0 or index >= len(topics):
             raise RuntimeError(f"POST_INDEX must be 0, 1, or 2; got {POST_INDEX}")
         topic = topics[index]
