@@ -1,6 +1,8 @@
 name: Kunnotes Daily Publisher
 
 on:
+  push:
+    branches: [main]
   schedule:
     - cron: '0 8 * * *'
       timezone: 'Asia/Seoul'
@@ -39,6 +41,7 @@ permissions:
 
 jobs:
   publish:
+    if: github.event_name != 'push' || github.event.head_commit.message == 'chore: trigger automatic Tistory publish test'
     runs-on: ubuntu-latest
     env:
       TZ: Asia/Seoul
@@ -48,7 +51,7 @@ jobs:
       TISTORY_STORAGE_STATE_2: ${{ secrets.TISTORY_STORAGE_STATE_2 }}
       TISTORY_STORAGE_STATE_3: ${{ secrets.TISTORY_STORAGE_STATE_3 }}
       OPENAI_MODEL: gpt-5.2
-      DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || (inputs.publish == true && 'false' || 'true') }}
+      DRY_RUN: ${{ (github.event_name == 'schedule' || github.event_name == 'push') && 'false' || (inputs.publish == true && 'false' || 'true') }}
       POST_INDEX: '0'
       FORCE_TOPIC: ${{ inputs.topic }}
       IMAGE_URLS: ${{ inputs.image_urls }}
@@ -61,8 +64,8 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Install Playwright Chromium
         run: python -m playwright install --with-deps chromium
-      - name: Configure scheduled post
-        if: github.event_name == 'schedule'
+      - name: Configure scheduled or test post
+        if: github.event_name == 'schedule' || github.event_name == 'push'
         run: |
           case "${{ github.event.schedule }}" in
             '0 8 * * *')
@@ -80,6 +83,7 @@ jobs:
               ;;
             *)
               echo 'POST_INDEX=0' >> "$GITHUB_ENV"
+              echo 'FORCE_TOPIC=2026년 하반기 금리 인하 가능성, 투자자는 무엇을 준비해야 할까?' >> "$GITHUB_ENV"
               ;;
           esac
       - name: Run publisher
@@ -93,3 +97,4 @@ jobs:
 # Scheduled runs automatically publish one post per slot in the 08-09, 12-15, and 21-23 KST windows.
 # The publisher waits a random amount within each window before publishing.
 # Manual runs are DRY_RUN by default; enable the "publish" checkbox for a real Tistory post.
+# The push trigger above is restricted to this exact test commit and should be removed after the test.
