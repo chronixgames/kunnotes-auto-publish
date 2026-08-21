@@ -11,7 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TISTORY_BLOG_NAME: ${{ secrets.TISTORY_BLOG_NAME }}
-      TISTORY_STORAGE_STATE: ${{ secrets.TISTORY_STORAGE_STATE }}
+      TISTORY_STORAGE_STATE_1: ${{ secrets.TISTORY_STORAGE_STATE_1 }}
+      TISTORY_STORAGE_STATE_2: ${{ secrets.TISTORY_STORAGE_STATE_2 }}
+      TISTORY_STORAGE_STATE_3: ${{ secrets.TISTORY_STORAGE_STATE_3 }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
