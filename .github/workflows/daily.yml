@@ -25,6 +25,7 @@ on:
   push:
     paths:
       - '.github/publish-trigger.json'
+      - '.github/one-time-publish-trigger'
 
 permissions:
   contents: read
