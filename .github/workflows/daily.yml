@@ -2,7 +2,6 @@ name: Kunnotes Daily Publisher
 
 on:
   schedule:
-    # GitHub Actions cron is UTC. These start windows at 08:00, 12:00, 21:00 KST.
     - cron: '0 23 * * *'
     - cron: '0 3 * * *'
     - cron: '0 12 * * *'
@@ -78,6 +77,8 @@ jobs:
           PY
       - name: Apply Kunnotes post rules
         run: python scripts/apply_post_rules.py
+      - name: Apply final Kunnotes formatting rules
+        run: python scripts/apply_final_rules.py
       - run: pip install -r requirements.txt
       - name: Install Playwright Chromium
         run: python -m playwright install --with-deps chromium
