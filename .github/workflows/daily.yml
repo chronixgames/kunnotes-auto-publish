@@ -19,14 +19,9 @@ on:
         default: '2026년 하반기 금리 인하 가능성, 투자자는 무엇을 준비해야 할까?'
         type: string
       image_urls:
-        description: 'Comma-separated direct image URLs'
+        description: 'Optional comma-separated direct image URLs for a manual override'
         required: false
-        default: 'https://images.pexels.com/photos/7691664/pexels-photo-7691664.jpeg?auto=compress&cs=tinysrgb&w=1200,https://images.pexels.com/photos/6801681/pexels-photo-6801681.jpeg?auto=compress&cs=tinysrgb&w=1200,https://images.pexels.com/photos/7567591/pexels-photo-7567591.jpeg?auto=compress&cs=tinysrgb&w=1200'
-        type: string
-      image_credits:
-        description: 'Optional image credits separated by |'
-        required: false
-        default: 'Photo by Yan Krukau via Pexels|Photo by Hanna Pad via Pexels|Photo by Tima Miroshnichenko via Pexels'
+        default: ''
         type: string
 
 permissions:
@@ -38,6 +33,7 @@ jobs:
     env:
       TZ: Asia/Seoul
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
       TISTORY_BLOG_NAME: ${{ secrets.TISTORY_BLOG_NAME }}
       TISTORY_STORAGE_STATE_1: ${{ secrets.TISTORY_STORAGE_STATE_1 }}
       TISTORY_STORAGE_STATE_2: ${{ secrets.TISTORY_STORAGE_STATE_2 }}
@@ -47,7 +43,6 @@ jobs:
       POST_INDEX: '0'
       FORCE_TOPIC: ${{ inputs.topic }}
       IMAGE_URLS: ${{ inputs.image_urls }}
-      IMAGE_CREDITS: ${{ inputs.image_credits }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -82,5 +77,5 @@ jobs:
           retention-days: 7
 
 # Scheduled runs automatically publish one post per slot.
-# The publisher should wait a random amount within each configured window before publishing.
+# The publisher waits a random amount within each configured window before publishing.
 # Manual runs are DRY_RUN by default; enable the "publish" checkbox for a real Tistory post.
