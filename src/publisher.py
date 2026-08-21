@@ -65,8 +65,68 @@ def _clean_body(body):
     return cleaned
 
 
+def _repair_table_boundaries(body):
+    """Keep headings, images, notices and closing sections outside malformed tables."""
+    tokens = re.split(r"(<[^>]+>)", body)
+    out = []
+    table_depth = 0
+    cell_depth = 0
+    row_depth = 0
+    block_start = re.compile(r"<(?:h[1-6]|hr|div|figure|blockquote|ul|ol)\b", re.IGNORECASE)
+
+    for token in tokens:
+        if token.startswith("<"):
+            low = token.lower()
+
+            if re.match(r"<table\b", low):
+                table_depth += 1
+            elif re.match(r"</table\b", low):
+                if table_depth > 0 and cell_depth > 0:
+                    out.append("</td>")
+                    cell_depth = 0
+                if table_depth > 0 and row_depth > 0:
+                    out.append("</tr>")
+                    row_depth = 0
+                table_depth = max(0, table_depth - 1)
+            elif re.match(r"<(?:td|th)\b", low):
+                cell_depth += 1
+            elif re.match(r"</(?:td|th)\b", low):
+                if cell_depth > 0:
+                    cell_depth -= 1
+                elif table_depth == 0:
+                    continue
+            elif re.match(r"<tr\b", low):
+                row_depth += 1
+            elif re.match(r"</tr\b", low):
+                if row_depth > 0:
+                    row_depth -= 1
+                elif table_depth == 0:
+                    continue
+
+            if table_depth > 0 and cell_depth > 0 and block_start.match(token):
+                out.append("</td></tr></table>")
+                table_depth = 0
+                cell_depth = 0
+                row_depth = 0
+                out.append(token)
+                continue
+
+        if not token.startswith("<") or table_depth > 0 or not re.match(r"</(?:td|th|tr)\b", token, re.IGNORECASE):
+            out.append(token)
+
+    if table_depth > 0:
+        if cell_depth > 0:
+            out.append("</td>")
+        if row_depth > 0:
+            out.append("</tr>")
+        out.append("</table>")
+
+    return "".join(out)
+
+
 def _style_tables(body):
     """Normalize table typography/alignment so generated tables render consistently."""
+    body = _repair_table_boundaries(body)
     body = re.sub(
         r"<table(?![^>]*style=)",
         "<table style='width:100%;border-collapse:collapse;table-layout:fixed;'",
@@ -79,7 +139,7 @@ def _style_tables(body):
         body,
         flags=re.IGNORECASE,
     )
-    cell_style = "padding:11px 10px;line-height:1.6;text-align:center;vertical-align:middle;word-break:keep-all;"
+    cell_style = "padding:11px 10px;line-height:1.6;text-align:center;vertical-align:middle;word-break:keep-all;overflow-wrap:anywhere;"
     body = re.sub(
         r"<(th|td)(?![^>]*style=)",
         lambda m: f"<{m.group(1)} style='{cell_style}'",
@@ -160,7 +220,6 @@ def _find_attach_button(page):
         if button:
             return button
 
-    # Last-resort text/aria-label scan for Tistory toolbar variants.
     for i in range(page.locator("button, [role='button']").count()):
         btn = page.locator("button, [role='button']").nth(i)
         try:
@@ -229,7 +288,6 @@ def _set_file_for_upload(page, path):
 
     attach.scroll_into_view_if_needed()
 
-    # Some Tistory versions open the native chooser immediately; others open a menu first.
     try:
         with page.expect_file_chooser(timeout=6000) as chooser_info:
             attach.click(timeout=10000)
@@ -242,7 +300,6 @@ def _set_file_for_upload(page, path):
     except PlaywrightTimeoutError:
         pass
 
-    # Menu opened but no chooser event was captured. Click the photo item and wait again.
     menu_item = _choose_photo_menu_item(page)
     if menu_item:
         try:
@@ -253,7 +310,6 @@ def _set_file_for_upload(page, path):
         except PlaywrightTimeoutError:
             pass
 
-    # The click may have created the input asynchronously.
     page.wait_for_timeout(500)
     existing = _find_file_input(page)
     if existing:
@@ -293,7 +349,7 @@ def _replace_image_placeholders(body, image_urls):
     out = _style_tables(_clean_body(body))
     for i, url in enumerate(image_urls[:5], 1):
         img = (
-            f"<figure style='margin:28px 0;text-align:center'>"
+            f"<figure style='margin:0;text-align:center;line-height:0'>"
             f"<img src='{url}' alt='본문 주제 관련 이미지' "
             f"style='display:block;width:100%;max-width:900px;height:auto;margin:0 auto;border-radius:8px;' />"
             f"</figure>"
