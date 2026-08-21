@@ -18,7 +18,7 @@ on:
       topic:
         description: 'Optional topic for a one-off manual post'
         required: false
-        default: ''
+        default: '월 100만원 배당 받는 포트폴리오, 현실적으로 얼마가 필요할까?'
         type: string
       image_urls:
         description: 'Comma-separated direct image URLs'
