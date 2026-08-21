@@ -3,10 +3,12 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import feedparser
 from openai import OpenAI
+from publisher import publish
 
 KST = ZoneInfo("Asia/Seoul")
 BLOG = os.getenv("TISTORY_BLOG_NAME", "kunnotes")
 DRY_RUN = os.getenv("DRY_RUN", "true").lower() == "true"
+POST_INDEX = os.getenv("POST_INDEX", "0")
 FEEDS = [
     "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best",
     "https://feeds.bbci.co.uk/news/business/rss.xml",
@@ -72,15 +74,38 @@ def main():
     now = datetime.now(KST)
     items = fetch_items()
     topics = choose_topics(items)
-    output = []
-    for topic, window in zip(topics, WINDOWS):
-        post = article(topic)
-        slot = random_slot(now.date(), window)
-        output.append({"slot_kst": slot.isoformat(), "title": post["title"], "tags": post["tags"], "body": post["body"], "source": topic["source_url"]})
+
+    try:
+        index = int(POST_INDEX)
+    except ValueError:
+        index = 0
+    if index < 0 or index >= len(topics):
+        raise RuntimeError(f"POST_INDEX must be 0, 1, or 2; got {POST_INDEX}")
+
+    topic = topics[index]
+    post = article(topic)
+    slot = random_slot(now.date(), WINDOWS[index])
+    output_post = {
+        "slot_kst": slot.isoformat(),
+        "title": post["title"],
+        "tags": post["tags"],
+        "body": post["body"],
+        "source": topic["source_url"],
+    }
+
+    if not DRY_RUN:
+        result_url = publish({"title": output_post["title"], "body": output_post["body"]})
+        output_post["published_url"] = result_url
+        print(f"PUBLISHED=true")
+        print(f"PUBLISH_RESULT_URL={result_url}")
+    else:
+        print("PUBLISHED=false (DRY_RUN)")
+
     os.makedirs("out", exist_ok=True)
     with open("out/today.json", "w", encoding="utf-8") as f:
-        json.dump({"generated_at": now.isoformat(), "dry_run": DRY_RUN, "posts": output}, f, ensure_ascii=False, indent=2)
-    print(json.dumps({"generated_at": now.isoformat(), "dry_run": DRY_RUN, "posts": [{"slot_kst": x["slot_kst"], "title": x["title"]} for x in output]}, ensure_ascii=False, indent=2))
+        json.dump({"generated_at": now.isoformat(), "dry_run": DRY_RUN, "posts": [output_post]}, f, ensure_ascii=False, indent=2)
+    print(json.dumps({"generated_at": now.isoformat(), "dry_run": DRY_RUN, "post_index": index, "title": output_post["title"]}, ensure_ascii=False, indent=2))
+
 
 if __name__ == "__main__":
     main()
