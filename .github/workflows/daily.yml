@@ -23,6 +23,9 @@ on:
         required: false
         default: ''
         type: string
+  push:
+    paths:
+      - '.github/publish-trigger.json'
 
 permissions:
   contents: read
@@ -39,7 +42,7 @@ jobs:
       TISTORY_STORAGE_STATE_2: ${{ secrets.TISTORY_STORAGE_STATE_2 }}
       TISTORY_STORAGE_STATE_3: ${{ secrets.TISTORY_STORAGE_STATE_3 }}
       OPENAI_MODEL: gpt-5.2
-      DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || (inputs.publish == true && 'false' || 'true') }}
+      DRY_RUN: ${{ github.event_name == 'schedule' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish == true) && 'false' || 'true' }}
       POST_INDEX: '0'
       FORCE_TOPIC: ${{ inputs.topic }}
       IMAGE_URLS: ${{ inputs.image_urls }}
@@ -48,6 +51,26 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Configure assistant-triggered post
+        if: github.event_name == 'push'
+        run: |
+          python - <<'PY'
+          import json, os
+          with open('.github/publish-trigger.json', encoding='utf-8') as f:
+              data = json.load(f)
+          topic = str(data.get('topic', '')).strip()
+          if not topic:
+              raise SystemExit('publish-trigger.json requires a non-empty topic')
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as f:
+              f.write('FORCE_TOPIC<<EOF\n')
+              f.write(topic + '\n')
+              f.write('EOF\n')
+          image_urls = data.get('image_urls', '')
+          if isinstance(image_urls, list):
+              image_urls = ','.join(str(x).strip() for x in image_urls if str(x).strip())
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as f:
+              f.write('IMAGE_URLS=' + str(image_urls) + '\n')
+          PY
       - name: Apply Kunnotes post rules
         run: python scripts/apply_post_rules.py
       - run: pip install -r requirements.txt
@@ -79,5 +102,5 @@ jobs:
           retention-days: 7
 
 # Scheduled runs automatically publish one post per slot.
-# The publisher waits a random amount within each configured window before publishing.
 # Manual runs are DRY_RUN by default; enable the "publish" checkbox for a real Tistory post.
+# Assistant-triggered runs publish when .github/publish-trigger.json is committed or updated.
