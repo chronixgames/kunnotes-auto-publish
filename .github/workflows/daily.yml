@@ -9,6 +9,12 @@ on:
     - cron: '5 18 * * *'
       timezone: 'Asia/Seoul'
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Actually publish the generated post to Tistory'
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -24,7 +30,7 @@ jobs:
       TISTORY_STORAGE_STATE_2: ${{ secrets.TISTORY_STORAGE_STATE_2 }}
       TISTORY_STORAGE_STATE_3: ${{ secrets.TISTORY_STORAGE_STATE_3 }}
       OPENAI_MODEL: gpt-5.2
-      DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || 'true' }}
+      DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || (inputs.publish == true && 'false' || 'true') }}
       POST_INDEX: '0'
     steps:
       - uses: actions/checkout@v4
@@ -49,4 +55,4 @@ jobs:
           retention-days: 7
 
 # Scheduled runs publish one post at 07:35, 12:05, and 18:05 Asia/Seoul.
-# Manual runs stay in DRY_RUN mode for safety.
+# Manual runs are DRY_RUN by default; enable the "publish" checkbox for a real Tistory post.
