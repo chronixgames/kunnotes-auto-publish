@@ -8,6 +8,9 @@ on:
       timezone: 'Asia/Seoul'
     - cron: '0 21 * * *'
       timezone: 'Asia/Seoul'
+    # One-time pipeline test: 2026-08-21 23:50 KST
+    - cron: '50 14 21 8 *'
+      timezone: 'Asia/Seoul'
   workflow_dispatch:
     inputs:
       publish:
@@ -58,14 +61,26 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Install Playwright Chromium
         run: python -m playwright install --with-deps chromium
-      - name: Select scheduled post
+      - name: Configure scheduled post
         if: github.event_name == 'schedule'
         run: |
           case "${{ github.event.schedule }}" in
-            '0 8 * * *') echo 'POST_INDEX=0' >> "$GITHUB_ENV" ;;
-            '0 12 * * *') echo 'POST_INDEX=1' >> "$GITHUB_ENV" ;;
-            '0 21 * * *') echo 'POST_INDEX=2' >> "$GITHUB_ENV" ;;
-            *) echo 'POST_INDEX=0' >> "$GITHUB_ENV" ;;
+            '0 8 * * *')
+              echo 'POST_INDEX=0' >> "$GITHUB_ENV"
+              ;;
+            '0 12 * * *')
+              echo 'POST_INDEX=1' >> "$GITHUB_ENV"
+              ;;
+            '0 21 * * *')
+              echo 'POST_INDEX=2' >> "$GITHUB_ENV"
+              ;;
+            '50 14 21 8 *')
+              echo 'POST_INDEX=0' >> "$GITHUB_ENV"
+              echo 'FORCE_TOPIC=2026년 하반기 금리 인하 가능성, 투자자는 무엇을 준비해야 할까?' >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo 'POST_INDEX=0' >> "$GITHUB_ENV"
+              ;;
           esac
       - name: Run publisher
         run: python src/main.py
