@@ -46,6 +46,7 @@ jobs:
       POST_INDEX: '0'
       FORCE_TOPIC: ${{ inputs.topic }}
       IMAGE_URLS: ${{ inputs.image_urls }}
+      PUBLISH_ASSISTANT: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -58,10 +59,14 @@ jobs:
           import json, os
           with open('.github/publish-trigger.json', encoding='utf-8') as f:
               data = json.load(f)
+          if not data.get('enabled', False):
+              print('Assistant publish trigger is disabled; skipping publisher.')
+              raise SystemExit(0)
           topic = str(data.get('topic', '')).strip()
           if not topic:
               raise SystemExit('publish-trigger.json requires a non-empty topic')
           with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as f:
+              f.write('PUBLISH_ASSISTANT=true\n')
               f.write('FORCE_TOPIC<<EOF\n')
               f.write(topic + '\n')
               f.write('EOF\n')
@@ -94,8 +99,10 @@ jobs:
               ;;
           esac
       - name: Run publisher
+        if: github.event_name != 'push' || env.PUBLISH_ASSISTANT == 'true'
         run: python src/main.py
       - uses: actions/upload-artifact@v4
+        if: github.event_name != 'push' || env.PUBLISH_ASSISTANT == 'true'
         with:
           name: daily-post-${{ github.run_id }}
           path: out/today.json
@@ -103,4 +110,4 @@ jobs:
 
 # Scheduled runs automatically publish one post per slot.
 # Manual runs are DRY_RUN by default; enable the "publish" checkbox for a real Tistory post.
-# Assistant-triggered runs publish when .github/publish-trigger.json is committed or updated.
+# Assistant-triggered runs publish when .github/publish-trigger.json is enabled and committed or updated.
