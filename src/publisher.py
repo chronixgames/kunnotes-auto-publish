@@ -5,7 +5,7 @@ import json
 import os
 import re
 from pathlib import Path
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 
 def _load_state():
@@ -131,7 +131,7 @@ def _fill_tags(page, tags):
 
 
 def _visible_locator(page, selector):
-    """Return the first visible match; Tistory often keeps a hidden duplicate toolbar."""
+    """Return the first visible match; Tistory often keeps hidden duplicate toolbar."""
     loc = page.locator(selector)
     for i in range(loc.count()):
         candidate = loc.nth(i)
@@ -143,55 +143,124 @@ def _visible_locator(page, selector):
     return None
 
 
-def _open_photo_upload(page):
-    # Tistory's toolbar can contain hidden duplicate attach buttons. Always target a visible one.
-    file_input = page.locator("#openFile, input[type='file']").first
-    if file_input.count() and file_input.is_visible(timeout=500):
-        return
-
+def _find_attach_button(page):
     selectors = [
+        '[aria-label*="사진"]:visible',
+        '[title*="사진"]:visible',
+        '[data-name="image"]:visible',
+        '[data-command="image"]:visible',
+        'button[class*="image"]:visible',
         '[aria-label="첨부"]:visible',
         'button[class*="attach"]:visible',
         '.btn_file:visible',
         '[role="button"][aria-label*="첨부"]:visible',
     ]
-    attach = None
     for selector in selectors:
-        attach = _visible_locator(page, selector)
-        if attach:
-            break
+        button = _visible_locator(page, selector)
+        if button:
+            return button
 
-    if attach:
-        attach.scroll_into_view_if_needed()
-        attach.click(timeout=10000)
-        page.wait_for_timeout(500)
-    else:
-        for i in range(page.locator("button, [role='button']").count()):
-            btn = page.locator("button, [role='button']").nth(i)
-            try:
-                if not btn.is_visible(timeout=300):
-                    continue
-                label = (btn.get_attribute("aria-label") or "") + " " + (btn.inner_text(timeout=300) or "")
-                if "첨부" in label:
-                    btn.scroll_into_view_if_needed()
-                    btn.click(timeout=10000)
-                    page.wait_for_timeout(500)
-                    break
-            except Exception:
-                pass
-
-    menu = _visible_locator(page, '[role="menuitem"], .mce-menu-item')
-    if menu:
+    # Last-resort text/aria-label scan for Tistory toolbar variants.
+    for i in range(page.locator("button, [role='button']").count()):
+        btn = page.locator("button, [role='button']").nth(i)
         try:
-            candidates = page.locator('[role="menuitem"], .mce-menu-item')
-            for i in range(candidates.count()):
-                item = candidates.nth(i)
-                if item.is_visible(timeout=300) and "사진" in (item.inner_text(timeout=300) or ""):
-                    item.click(timeout=10000)
-                    page.wait_for_timeout(500)
-                    break
+            if not btn.is_visible(timeout=300):
+                continue
+            label = " ".join([
+                btn.get_attribute("aria-label") or "",
+                btn.get_attribute("title") or "",
+                btn.inner_text(timeout=300) or "",
+            ])
+            if any(word in label for word in ("사진", "이미지", "첨부")):
+                return btn
         except Exception:
             pass
+    return None
+
+
+def _find_file_input(page):
+    inputs = page.locator("input[type='file']")
+    for i in range(inputs.count() - 1, -1, -1):
+        candidate = inputs.nth(i)
+        try:
+            if candidate.is_attached():
+                return candidate
+        except Exception:
+            pass
+    return None
+
+
+def _choose_photo_menu_item(page):
+    selectors = [
+        '[role="menuitem"]:visible',
+        '.mce-menu-item:visible',
+        'button:visible',
+        '[role="option"]:visible',
+    ]
+    for selector in selectors:
+        candidates = page.locator(selector)
+        for i in range(candidates.count()):
+            item = candidates.nth(i)
+            try:
+                if not item.is_visible(timeout=300):
+                    continue
+                text = " ".join([
+                    item.get_attribute("aria-label") or "",
+                    item.get_attribute("title") or "",
+                    item.inner_text(timeout=300) or "",
+                ])
+                if "사진" in text or "이미지" in text:
+                    return item
+            except Exception:
+                pass
+    return None
+
+
+def _set_file_for_upload(page, path):
+    """Upload through an existing file input or the native Playwright file chooser."""
+    existing = _find_file_input(page)
+    if existing:
+        existing.set_input_files(path)
+        return
+
+    attach = _find_attach_button(page)
+    if not attach:
+        raise RuntimeError("Tistory image/attachment button was not found")
+
+    attach.scroll_into_view_if_needed()
+
+    # Some Tistory versions open the native chooser immediately; others open a menu first.
+    try:
+        with page.expect_file_chooser(timeout=6000) as chooser_info:
+            attach.click(timeout=10000)
+            page.wait_for_timeout(300)
+            menu_item = _choose_photo_menu_item(page)
+            if menu_item:
+                menu_item.click(timeout=10000)
+        chooser_info.value.set_files(path)
+        return
+    except PlaywrightTimeoutError:
+        pass
+
+    # Menu opened but no chooser event was captured. Click the photo item and wait again.
+    menu_item = _choose_photo_menu_item(page)
+    if menu_item:
+        try:
+            with page.expect_file_chooser(timeout=10000) as chooser_info:
+                menu_item.click(timeout=10000)
+            chooser_info.value.set_files(path)
+            return
+        except PlaywrightTimeoutError:
+            pass
+
+    # The click may have created the input asynchronously.
+    page.wait_for_timeout(500)
+    existing = _find_file_input(page)
+    if existing:
+        existing.set_input_files(path)
+        return
+
+    raise RuntimeError("Tistory image upload control opened, but no file input/file chooser was detected")
 
 
 def _upload_images(page, image_paths):
@@ -204,15 +273,12 @@ def _upload_images(page, image_paths):
     frame_body.click()
 
     for path in paths:
-        _open_photo_upload(page)
-        file_input = page.locator("#openFile, input[type='file']").first
-        file_input.wait_for(state="attached", timeout=10000)
-        file_input.set_input_files(path)
+        _set_file_for_upload(page, path)
         page.wait_for_timeout(2500)
 
     frame = page.frame_locator("iframe#editor-tistory_ifr")
     imgs = frame.locator("body img")
-    deadline = 20
+    deadline = 30
     for _ in range(deadline):
         if imgs.count() >= len(paths):
             break
