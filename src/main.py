@@ -54,14 +54,22 @@ def article(topic):
 - 본문은 약 1,500~2,000자 분량
 - 포스팅 스타일은 정보형 블로그이며, 딱딱한 뉴스 기사처럼 쓰지 말고 일반 투자자가 이해하기 쉽게 설명
 - 검색자가 실제로 궁금해하는 내용을 중심으로 구체적인 SEO 제목 1개 작성
-- 제목 바로 아래 '핵심요약' 영역을 만들고 불릿 3~5개로 요점 압축
+- 제목 바로 아래에는 반드시 아래와 같은 '핵심 요약' HTML 박스를 만들 것. 이 형식과 이모지를 유지하되 내용은 글의 실제 핵심으로 바꿀 것.
+  <div style="margin:24px 0;padding:24px 22px;border:1px solid #cfe0ff;border-radius:18px;background:#f8fbff;line-height:1.8;">
+    <div style="font-size:22px;font-weight:700;color:#1565c0;margin-bottom:14px;">📌 이번 포스팅 핵심 요약</div>
+    <div style="margin:7px 0;">✅ 핵심 내용 1</div>
+    <div style="margin:7px 0;">✅ 핵심 내용 2</div>
+    <div style="margin:7px 0;">✅ 핵심 내용 3</div>
+    <div style="margin:7px 0;">✅ 핵심 내용 4</div>
+  </div>
+- 핵심 요약은 4개 항목을 권장하고, 각 항목은 한 문장으로 짧고 명확하게 작성
 - 이후 번호가 붙은 <h2> 소제목 4~6개로 구성
 - 각 소제목 아래 2~4개의 짧은 <p> 문단을 사용하고 line-height:1.8 수준으로 읽기 편하게 구성
-- 필요하면 비교·계산·전망을 <table> HTML로 정리하되, 헤더/본문 셀의 padding과 line-height를 통일해 줄간격이 어긋나지 않게 작성
+- 필요하면 비교·계산·전망을 <table> HTML로 정리하되, 모든 표의 헤더와 본문 셀은 가운데 정렬한다. 표 전체는 width:100%; border-collapse:collapse;로 만들고, th/td에 padding:11px 10px; line-height:1.6; text-align:center; vertical-align:middle;을 동일하게 적용한다.
+- 표 안의 숫자와 텍스트는 좌우·상하 가운데 정렬로 통일해 줄간격과 위치가 어긋나지 않게 한다.
 - 표는 가로 스크롤 없이 모바일에서도 읽기 좋게 구성하고, 핵심 수치나 결론은 굵게 표시
 - 중요한 수치, 결론, 주의사항은 파란색·주황색·빨간색 등을 활용한 인라인 강조나 박스형 HTML로 시각화하되 과도하게 사용하지 말 것
 - 소제목은 왼쪽 세로선을 활용해 구분감 있게 작성하고, 전체적으로 깔끔한 정보형 블로그 디자인을 유지
-- 중간에 핵심 포인트를 1~2개의 박스형 HTML 영역으로 강조할 수 있음. 이모지는 사용하지 않거나 전체 글에서 최대 1개만 사용
 - 전문용어는 처음 나올 때 쉬운 말로 풀어서 설명
 - 단순 뉴스 복사/번역이 아니라 '뉴스 → 의미 → 투자자에게 미치는 영향 → 실제 대응' 순서로 설명
 - 뉴스에서 확인된 사실과 작성자의 해석을 명확히 구분
@@ -69,15 +77,16 @@ def article(topic):
 - 확실하지 않은 내용은 '~로 알려졌다', '~할 가능성이 있다', '향후 논의에 따라 달라질 수 있다'처럼 표현
 - 투자 조언처럼 단정하지 말고 위험요인과 확인사항도 함께 설명
 - 계산 예시는 반드시 '가정'이라고 표시
-- 본문 안에 관련 이미지가 들어갈 위치를 <p><!--IMAGE1--></p>, <p><!--IMAGE2--></p>, <p><!--IMAGE3--></p> 순서로 최대 3곳 표시. IMAGE1은 반드시 제목 다음 핵심요약 바로 뒤의 가장 위쪽 이미지 위치에 둘 것
+- 본문 안에는 관련 이미지 위치를 <p><!--IMAGE1--></p>부터 <p><!--IMAGE5--></p>까지 순서대로 최대 5곳 표시한다. IMAGE1은 반드시 제목과 핵심 요약 박스 바로 뒤의 가장 위쪽 이미지 위치에 둔다. 나머지는 서로 다른 소제목 사이에 자연스럽게 배치한다.
 - 마지막에는 정확히 <h2>포스팅을 마치며...</h2>를 넣고 독자가 기억할 핵심을 간결하게 정리
 - 그 다음 '참고자료' 영역을 만들고 실제 사용한 기사/기관 출처를 링크 형태로 1~3개 표기. 출처가 제공되지 않았다면 임의의 URL을 만들지 말고 '관련 공식자료 확인 필요'라고 적기
 - 마지막에 정확한 면책 문구를 넣기: <p><em>본 콘텐츠는 정보 제공을 위한 것이며, 투자·세무 판단의 근거가 되는 조언이 아닙니다.</em></p>
 - 본문에는 해시태그를 절대 넣지 말 것. 해시태그는 Tistory 태그 영역에 별도로 등록한다.
+- 태그는 #과 콤마(,)를 포함하지 않은 순수 문자열 10개를 반환한다.
 - '테스트', '테스트용', '샘플', '시험' 같은 표현은 절대 사용하지 말 것
 - 이미지 하단에 사진작가·출처·Pexels·Pixabay 등의 영문 크레딧 문구를 본문에 넣지 말 것
 - HTML 본문만 body에 넣고 body 안에 마크다운을 사용하지 말 것
-- JSON으로 title, body, tags, image_keywords를 반환. tags는 # 없이 정확히 10개의 문자열 배열. image_keywords는 본문 주제에 맞는 구체적인 영어 검색어 3개 배열
+- JSON으로 title, body, tags, image_keywords를 반환. tags는 #과 콤마 없이 정확히 10개의 문자열 배열. image_keywords는 본문 주제에 맞는 구체적인 영어 검색어 3~5개 배열
 '''
     r = client.responses.create(model=os.getenv("OPENAI_MODEL", "gpt-5.2"), input=prompt)
     text = r.output_text
@@ -85,11 +94,9 @@ def article(topic):
 
     image_paths = fetch_pixabay_images(post.get("image_keywords", []), post.get("title", topic.get("title", "")))
     if not image_paths and IMAGE_URLS:
-        # 수동 테스트용 URL이 주어진 경우에만 사용
         post["body"] = add_images(post["body"], IMAGE_URLS)
         post["image_paths"] = []
     else:
-        post["body"] = post["body"].replace("<!--IMAGE1-->", "<!--IMAGE1-->").replace("<!--IMAGE2-->", "<!--IMAGE2-->").replace("<!--IMAGE3-->", "<!--IMAGE3-->")
         post["image_paths"] = image_paths
 
     tags = normalize_tags(post.get("tags", []))
@@ -109,7 +116,7 @@ def normalize_tags(raw_tags):
         raw_tags = re.split(r"[,，|\n]+", raw_tags)
     for raw in raw_tags or []:
         for part in re.split(r"[,，|\n]+", str(raw)):
-            tag = part.strip().lstrip("#").strip()
+            tag = part.strip().lstrip("#").strip().replace(",", "").replace("，", "")
             if tag and tag not in tags:
                 tags.append(tag)
     return tags[:10]
@@ -128,41 +135,69 @@ def fetch_pixabay_images(keywords, title):
     query_parts = [str(k).strip() for k in (keywords or []) if str(k).strip()]
     if not query_parts:
         query_parts = [title]
-    query = " | ".join(query_parts[:3])[:100]
-    params = urlencode({
-        "key": PIXABAY_API_KEY,
-        "q": query,
-        "lang": "en",
-        "image_type": "photo",
-        "orientation": "horizontal",
-        "safesearch": "true",
-        "order": "popular",
-        "per_page": 20,
-    })
+
+    target_count = random.randint(3, 5)
+    out_dir = Path("out/images")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    hits = []
+    used_ids = set()
+
     try:
-        req = Request("https://pixabay.com/api/?" + params, headers={"User-Agent": "kunnotes-auto-publish/1.0"})
-        with urlopen(req, timeout=30) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        hits = [h for h in data.get("hits", []) if h.get("largeImageURL")]
+        for keyword in query_parts[:5]:
+            params = urlencode({
+                "key": PIXABAY_API_KEY,
+                "q": keyword[:100],
+                "lang": "en",
+                "image_type": "photo",
+                "orientation": "horizontal",
+                "safesearch": "true",
+                "order": random.choice(["popular", "latest"]),
+                "page": random.randint(1, 3),
+                "per_page": 20,
+            })
+            req = Request("https://pixabay.com/api/?" + params, headers={"User-Agent": "kunnotes-auto-publish/1.0"})
+            with urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            keyword_hits = [h for h in data.get("hits", []) if h.get("largeImageURL") and h.get("id") not in used_ids]
+            random.shuffle(keyword_hits)
+            for hit in keyword_hits:
+                hits.append(hit)
+                used_ids.add(hit.get("id"))
+                if len(hits) >= target_count:
+                    break
+            if len(hits) >= target_count:
+                break
+
+        if len(hits) < target_count:
+            params = urlencode({
+                "key": PIXABAY_API_KEY,
+                "q": title[:100],
+                "lang": "en",
+                "image_type": "photo",
+                "orientation": "horizontal",
+                "safesearch": "true",
+                "order": "latest",
+                "per_page": 30,
+            })
+            req = Request("https://pixabay.com/api/?" + params, headers={"User-Agent": "kunnotes-auto-publish/1.0"})
+            with urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            extra = [h for h in data.get("hits", []) if h.get("largeImageURL") and h.get("id") not in used_ids]
+            random.shuffle(extra)
+            hits.extend(extra[:target_count - len(hits)])
+
         if not hits:
             return []
 
-        out_dir = Path("out/images")
-        out_dir.mkdir(parents=True, exist_ok=True)
         paths = []
-        used = set()
-        for index, hit in enumerate(hits):
-            if hit.get("id") in used:
-                continue
-            used.add(hit.get("id"))
+        for index, hit in enumerate(hits[:target_count], 1):
             image_url = hit["largeImageURL"]
-            filename = out_dir / f"{index + 1:02d}-{_safe_filename(title)}.jpg"
+            filename = out_dir / f"{index:02d}-{_safe_filename(title)}-{hit.get('id', index)}.jpg"
             req_img = Request(image_url, headers={"User-Agent": "kunnotes-auto-publish/1.0"})
             with urlopen(req_img, timeout=45) as resp:
                 filename.write_bytes(resp.read())
             paths.append(str(filename))
-            if len(paths) == 3:
-                break
+        print(f"PIXABAY_IMAGES_SELECTED={len(paths)}")
         return paths
     except Exception as exc:
         print(f"Pixabay image fetch failed: {exc}")
@@ -171,10 +206,10 @@ def fetch_pixabay_images(keywords, title):
 
 def add_images(body, urls):
     out = body
-    for i, url in enumerate(urls[:3], 1):
+    for i, url in enumerate(urls[:5], 1):
         img = f"<figure style='margin:28px 0;text-align:center'><img src='{url}' alt='본문 주제 관련 이미지' style='display:block;width:100%;max-width:900px;height:auto;margin:0 auto;border-radius:8px;' /></figure>"
         out = out.replace(f"<!--IMAGE{i}-->", img, 1)
-    for i in range(len(urls[:3]) + 1, 4):
+    for i in range(len(urls[:5]) + 1, 6):
         out = out.replace(f"<!--IMAGE{i}-->", "")
     return out
 
