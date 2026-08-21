@@ -63,13 +63,16 @@ def article(topic):
     <div style="margin:7px 0;">✅ 핵심 내용 4</div>
   </div>
 - 핵심 요약은 4개 항목을 권장하고, 각 항목은 한 문장으로 짧고 명확하게 작성
+- 핵심 요약의 각 항목은 '가능', '활용됨', '있음', '확인 필요'처럼 짧게 끝내고 긴 서술형 문장을 피할 것
 - 이후 번호가 붙은 <h2> 소제목 4~6개로 구성
 - 각 소제목 아래 2~4개의 짧은 <p> 문단을 사용하고 line-height:1.8 수준으로 읽기 편하게 구성
 - 필요하면 비교·계산·전망을 <table> HTML로 정리하되, 모든 표의 헤더와 본문 셀은 가운데 정렬한다. 표 전체는 width:100%; border-collapse:collapse;로 만들고, th/td에 padding:11px 10px; line-height:1.6; text-align:center; vertical-align:middle;을 동일하게 적용한다.
 - 표 안의 숫자와 텍스트는 좌우·상하 가운데 정렬로 통일해 줄간격과 위치가 어긋나지 않게 한다.
 - 표는 가로 스크롤 없이 모바일에서도 읽기 좋게 구성하고, 핵심 수치나 결론은 굵게 표시
 - 중요한 수치, 결론, 주의사항은 파란색·주황색·빨간색 등을 활용한 인라인 강조나 박스형 HTML로 시각화하되 과도하게 사용하지 말 것
+- 주의 박스를 사용할 경우 같은 컬러 박스 안에서 반드시 첫 줄에 '[주의]'를 단독으로 배치하고, 실제 주의 내용은 그 바로 아래 줄에 배치
 - 소제목은 왼쪽 세로선을 활용해 구분감 있게 작성하고, 전체적으로 깔끔한 정보형 블로그 디자인을 유지
+- 표식/강조 박스 안에는 이미지를 절대 넣지 말 것. 표식 안의 문구는 짧고 간결하게 작성
 - 전문용어는 처음 나올 때 쉬운 말로 풀어서 설명
 - 단순 뉴스 복사/번역이 아니라 '뉴스 → 의미 → 투자자에게 미치는 영향 → 실제 대응' 순서로 설명
 - 뉴스에서 확인된 사실과 작성자의 해석을 명확히 구분
@@ -78,9 +81,10 @@ def article(topic):
 - 투자 조언처럼 단정하지 말고 위험요인과 확인사항도 함께 설명
 - 계산 예시는 반드시 '가정'이라고 표시
 - 본문 안에는 관련 이미지 위치를 <p><!--IMAGE1--></p>부터 <p><!--IMAGE5--></p>까지 순서대로 최대 5곳 표시한다. IMAGE1은 반드시 제목과 핵심 요약 박스 바로 뒤의 가장 위쪽 이미지 위치에 둔다. 나머지는 서로 다른 소제목 사이에 자연스럽게 배치한다.
+- 이미지 위치의 앞뒤에는 불필요한 빈 줄이나 여백을 만들지 말 것
 - 마지막에는 정확히 <h2>포스팅을 마치며...</h2>를 넣고 독자가 기억할 핵심을 간결하게 정리
-- 그 다음 '참고자료' 영역을 만들고 실제 사용한 기사/기관 출처를 링크 형태로 1~3개 표기. 출처가 제공되지 않았다면 임의의 URL을 만들지 말고 '관련 공식자료 확인 필요'라고 적기
-- 마지막에 정확한 면책 문구를 넣기: <p><em>본 콘텐츠는 정보 제공을 위한 것이며, 투자·세무 판단의 근거가 되는 조언이 아닙니다.</em></p>
+- 참고자료 영역은 만들지 말 것
+- 마지막에 정확한 면책 문구를 넣기: <p><em>※ 본 콘텐츠는 정보 제공을 위한 것이며, 투자·세무 판단의 근거가 되는 조언이 아닙니다.</em></p>
 - 본문에는 해시태그를 절대 넣지 말 것. 해시태그는 Tistory 태그 영역에 별도로 등록한다.
 - 태그는 #과 콤마(,)를 포함하지 않은 순수 문자열 10개를 반환한다.
 - '테스트', '테스트용', '샘플', '시험' 같은 표현은 절대 사용하지 말 것
@@ -207,10 +211,13 @@ def fetch_pixabay_images(keywords, title):
 def add_images(body, urls):
     out = body
     for i, url in enumerate(urls[:5], 1):
-        img = f"<figure style='margin:28px 0;text-align:center'><img src='{url}' alt='본문 주제 관련 이미지' style='display:block;width:100%;max-width:900px;height:auto;margin:0 auto;border-radius:8px;' /></figure>"
+        img = f"<figure style='margin:0;padding:0;text-align:center;line-height:0'><img src='{url}' alt='본문 주제 관련 이미지' style='display:block;width:100%;max-width:900px;height:auto;margin:0 auto;border-radius:8px;' /></figure>"
+        placeholder = f"<p><!--IMAGE{i}--></p>"
+        out = out.replace(placeholder, img, 1)
         out = out.replace(f"<!--IMAGE{i}-->", img, 1)
     for i in range(len(urls[:5]) + 1, 6):
-        out = out.replace(f"<!--IMAGE{i}-->", "")
+        out = out.replace(f"<p><!--IMAGE{i}--></p>", "", 1)
+        out = out.replace(f"<!--IMAGE{i}-->", "", 1)
     return out
 
 
