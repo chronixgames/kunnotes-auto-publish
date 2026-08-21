@@ -54,11 +54,14 @@ def _load_state():
 def _fill_body(page, body):
     iframe = page.locator("iframe#editor-tistory_ifr").first
     if iframe.count():
-        page.frame_locator("iframe#editor-tistory_ifr").locator("body").fill(body)
+        frame_body = page.frame_locator("iframe#editor-tistory_ifr").locator("body").first
+        frame_body.wait_for(state="visible", timeout=20000)
+        frame_body.evaluate("(el, html) => { el.innerHTML = html; el.dispatchEvent(new InputEvent('input', {bubbles:true, inputType:'insertText', data:null})); el.dispatchEvent(new Event('change', {bubbles:true})); }", body)
         return
     editable = page.locator('[contenteditable="true"]').first
     if editable.count():
-        editable.fill(body)
+        editable.wait_for(state="visible", timeout=20000)
+        editable.evaluate("(el, html) => { el.innerHTML = html; el.dispatchEvent(new InputEvent('input', {bubbles:true, inputType:'insertText', data:null})); el.dispatchEvent(new Event('change', {bubbles:true})); }", body)
         return
     raise RuntimeError("Tistory body editor was not found")
 
@@ -97,10 +100,6 @@ def publish(post):
         else:
             page.get_by_text("공개 발행", exact=True).last.click()
 
-        # Tistory can complete the publish while keeping the browser on
-        # /manage/newpost (SPA behavior). Do not treat the URL alone as failure.
-        # Prefer waiting for the publish dialog to close; the smoke test then
-        # verifies the public RSS feed using the unique test title.
         try:
             page.locator("#publish-btn").first.wait_for(state="hidden", timeout=15000)
         except Exception:
