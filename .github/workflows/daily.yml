@@ -2,11 +2,11 @@ name: Kunnotes Daily Publisher
 
 on:
   schedule:
-    - cron: '35 7 * * *'
+    - cron: '0 8 * * *'
       timezone: 'Asia/Seoul'
-    - cron: '5 12 * * *'
+    - cron: '0 12 * * *'
       timezone: 'Asia/Seoul'
-    - cron: '5 18 * * *'
+    - cron: '0 21 * * *'
       timezone: 'Asia/Seoul'
   workflow_dispatch:
     inputs:
@@ -62,17 +62,19 @@ jobs:
         if: github.event_name == 'schedule'
         run: |
           case "${{ github.event.schedule }}" in
-            '35 7 * * *') echo 'POST_INDEX=0' >> "$GITHUB_ENV" ;;
-            '5 12 * * *') echo 'POST_INDEX=1' >> "$GITHUB_ENV" ;;
-            '5 18 * * *') echo 'POST_INDEX=2' >> "$GITHUB_ENV" ;;
+            '0 8 * * *') echo 'POST_INDEX=0' >> "$GITHUB_ENV" ;;
+            '0 12 * * *') echo 'POST_INDEX=1' >> "$GITHUB_ENV" ;;
+            '0 21 * * *') echo 'POST_INDEX=2' >> "$GITHUB_ENV" ;;
             *) echo 'POST_INDEX=0' >> "$GITHUB_ENV" ;;
           esac
-      - run: python src/main.py
+      - name: Run publisher
+        run: python src/main.py
       - uses: actions/upload-artifact@v4
         with:
           name: daily-post-${{ github.run_id }}
           path: out/today.json
           retention-days: 7
 
-# Scheduled runs publish one post at 07:35, 12:05, and 18:05 Asia/Seoul.
+# Scheduled runs automatically publish one post per slot in the 08-09, 12-15, and 21-23 KST windows.
+# The publisher waits a random amount within each window before publishing.
 # Manual runs are DRY_RUN by default; enable the "publish" checkbox for a real Tistory post.
