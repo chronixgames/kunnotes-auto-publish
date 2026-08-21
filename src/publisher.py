@@ -21,13 +21,23 @@ def _load_state():
 
     try:
         decoded = base64.b64decode(compact + "=" * (-len(compact) % 4), validate=False)
+
+        # Normal format: base64(gzip(JSON))
         if decoded[:2] == b"\x1f\x8b":
             raw = gzip.decompress(decoded).decode("utf-8")
         else:
-            errors.append(f"decoded data is not gzip (prefix={decoded[:8].hex()})")
-    except (binascii.Error, ValueError, OSError, EOFError, UnicodeDecodeError) as exc:
-        errors.append(f"gzip+base64 decode failed: {exc}")
+            # Also accept base64(JSON). The current stored state decodes to
+            # JSON rather than gzip, which is why the previous smoke test failed.
+            decoded_text = decoded.decode("utf-8").strip()
+            if decoded_text.startswith("{"):
+                json.loads(decoded_text)
+                raw = decoded_text
+            else:
+                errors.append(f"decoded data is neither gzip nor JSON (prefix={decoded[:8].hex()})")
+    except (binascii.Error, ValueError, OSError, EOFError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        errors.append(f"base64/state decode failed: {exc}")
 
+    # Also accept plain JSON if a secret was stored without base64 encoding.
     if raw is None and compact.startswith("{"):
         try:
             json.loads(compact)
@@ -37,7 +47,7 @@ def _load_state():
 
     if raw is None:
         raise RuntimeError(
-            "Invalid Tistory storage state. Expected gzip+base64 data (or plain JSON). "
+            "Invalid Tistory storage state. Expected base64(gzip(JSON)), base64(JSON), or plain JSON. "
             f"Combined length={len(compact)}. " + "; ".join(errors)
         )
 
