@@ -79,6 +79,8 @@ jobs:
         run: python scripts/apply_post_rules.py
       - name: Apply final Kunnotes formatting rules
         run: python scripts/apply_final_rules.py
+      - name: Disable tables for text-first posts
+        run: python scripts/disable_tables.py
       - run: pip install -r requirements.txt
       - name: Install Playwright Chromium
         run: python -m playwright install --with-deps chromium
