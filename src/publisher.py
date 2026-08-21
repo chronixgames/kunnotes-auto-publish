@@ -54,9 +54,9 @@ def _load_state():
 
 def _clean_body(body):
     credit_patterns = [
-        r"Photo\s+by\s+[^<\n]+?\s+via\s+Pexels",
-        r"Photo\s+by\s+[^<\n]+?\s+via\s+Pixabay",
-        r"Photo\s+by\s+[^<\n]+?\s+via\s+Unsplash",
+        r"Photo\s+by\s+[^<\n]+?\s+via\s+(?:Pexels|Pixabay|Unsplash)",
+        r"Photo\s+by\s+[^<\n]+?(?:Pexels|Pixabay|Unsplash)",
+        r"(?:Photo|Image)\s+(?:credit|source)\s*:\s*[^<\n]+",
     ]
     cleaned = body
     for pattern in credit_patterns:
@@ -65,8 +65,38 @@ def _clean_body(body):
     return cleaned
 
 
+def _style_tables(body):
+    """Normalize table typography/alignment so generated tables render consistently."""
+    body = re.sub(
+        r"<table(?![^>]*style=)",
+        "<table style='width:100%;border-collapse:collapse;table-layout:fixed;'",
+        body,
+        flags=re.IGNORECASE,
+    )
+    body = re.sub(
+        r"<table([^>]*style=['\"])([^'\"]*)['\"]",
+        lambda m: f"<table{m.group(1)}{m.group(2).rstrip(';')};width:100%;border-collapse:collapse;table-layout:fixed;'",
+        body,
+        flags=re.IGNORECASE,
+    )
+    cell_style = "padding:11px 10px;line-height:1.6;text-align:center;vertical-align:middle;word-break:keep-all;"
+    body = re.sub(
+        r"<(th|td)(?![^>]*style=)",
+        lambda m: f"<{m.group(1)} style='{cell_style}'",
+        body,
+        flags=re.IGNORECASE,
+    )
+    body = re.sub(
+        r"<(th|td)([^>]*style=['\"])([^'\"]*)['\"]",
+        lambda m: f"<{m.group(1)}{m.group(2)}{m.group(3).rstrip(';')};{cell_style}'",
+        body,
+        flags=re.IGNORECASE,
+    )
+    return body
+
+
 def _fill_body(page, body):
-    body = _clean_body(body)
+    body = _style_tables(_clean_body(body))
     iframe = page.locator("iframe#editor-tistory_ifr").first
     if iframe.count():
         frame_body = page.frame_locator("iframe#editor-tistory_ifr").locator("body").first
@@ -91,7 +121,7 @@ def _fill_tags(page, tags):
     normalized = []
     for raw in tags:
         for part in re.split(r"[,，|\n]+", str(raw)):
-            tag = part.strip().lstrip("#").strip()
+            tag = part.strip().lstrip("#").strip().replace(",", "").replace("，", "")
             if tag and tag not in normalized:
                 normalized.append(tag)
     for tag in normalized[:10]:
@@ -136,7 +166,6 @@ def _open_photo_upload(page):
         attach.click(timeout=10000)
         page.wait_for_timeout(500)
     else:
-        # Last resort: find a visible button whose accessible label/text contains 첨부.
         for i in range(page.locator("button, [role='button']").count()):
             btn = page.locator("button, [role='button']").nth(i)
             try:
@@ -154,7 +183,6 @@ def _open_photo_upload(page):
     menu = _visible_locator(page, '[role="menuitem"], .mce-menu-item')
     if menu:
         try:
-            # Prefer the visible menu item labelled 사진.
             candidates = page.locator('[role="menuitem"], .mce-menu-item')
             for i in range(candidates.count()):
                 item = candidates.nth(i)
@@ -167,7 +195,7 @@ def _open_photo_upload(page):
 
 
 def _upload_images(page, image_paths):
-    paths = [str(p) for p in image_paths if p and Path(p).exists()][:3]
+    paths = [str(p) for p in image_paths if p and Path(p).exists()][:5]
     if not paths:
         return []
 
@@ -196,8 +224,8 @@ def _upload_images(page, image_paths):
 
 
 def _replace_image_placeholders(body, image_urls):
-    out = _clean_body(body)
-    for i, url in enumerate(image_urls[:3], 1):
+    out = _style_tables(_clean_body(body))
+    for i, url in enumerate(image_urls[:5], 1):
         img = (
             f"<figure style='margin:28px 0;text-align:center'>"
             f"<img src='{url}' alt='본문 주제 관련 이미지' "
@@ -205,7 +233,7 @@ def _replace_image_placeholders(body, image_urls):
             f"</figure>"
         )
         out = out.replace(f"<!--IMAGE{i}-->", img, 1)
-    for i in range(len(image_urls[:3]) + 1, 4):
+    for i in range(len(image_urls[:5]) + 1, 6):
         out = out.replace(f"<!--IMAGE{i}-->", "")
     return out
 
