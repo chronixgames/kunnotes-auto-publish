@@ -24,7 +24,7 @@ on:
         type: string
   push:
     paths:
-      - '.github/publish-trigger.json'
+      - '.github/republish-trigger.json'
       - '.github/workflows/daily.yml'
 
 permissions:
@@ -57,14 +57,14 @@ jobs:
         run: |
           python - <<'PY'
           import json, os
-          with open('.github/publish-trigger.json', encoding='utf-8') as f:
+          with open('.github/republish-trigger.json', encoding='utf-8') as f:
               data = json.load(f)
           if not data.get('enabled', False):
               print('Assistant publish trigger is disabled; skipping publisher.')
               raise SystemExit(0)
           topic = str(data.get('topic', '')).strip()
           if not topic:
-              raise SystemExit('publish-trigger.json requires a non-empty topic')
+              raise SystemExit('republish-trigger.json requires a non-empty topic')
           with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as f:
               f.write('PUBLISH_ASSISTANT=true\n')
               f.write('FORCE_TOPIC<<EOF\n')
@@ -116,4 +116,4 @@ jobs:
 
 # Scheduled runs automatically publish one post per slot.
 # Manual runs are DRY_RUN by default; enable the "publish" checkbox for a real Tistory post.
-# Assistant-triggered runs publish when .github/publish-trigger.json is enabled and committed or updated.
+# Assistant-triggered runs publish when .github/republish-trigger.json is enabled and committed or updated.
