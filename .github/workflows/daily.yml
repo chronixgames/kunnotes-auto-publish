@@ -106,6 +106,84 @@ jobs:
               echo 'POST_INDEX=0' >> "$GITHUB_ENV"
               ;;
           esac
+      - name: Normalize Tistory storage state
+        env:
+          STATE_A: ${{ secrets.TISTORY_STORAGE_STATE }}
+          STATE_B: ${{ secrets.TISTORY_STORAGE_STATE_1 }}
+          STATE_C: ${{ secrets.TISTORY_STORAGE_STATE_2 }}
+        run: |
+          python - <<'PY'
+          import base64, gzip, json, os
+
+          chunks = [os.environ.get('STATE_A', ''), os.environ.get('STATE_B', ''), os.environ.get('STATE_C', '')]
+          chunks = [''.join(x.split()) for x in chunks if x.strip()]
+          if not chunks:
+              raise SystemExit('No Tistory storage-state secrets were found.')
+
+          def decode_b64(value):
+              return base64.b64decode(value + '=' * (-len(value) % 4), validate=True)
+
+          def valid(raw):
+              candidates = [raw]
+              if raw[:2] == b'\x1f\x8b':
+                  try:
+                      candidates.insert(0, gzip.decompress(raw))
+                  except Exception:
+                      pass
+              for candidate in candidates:
+                  try:
+                      text = candidate.decode('utf-8').strip()
+                      if text.startswith('{'):
+                          json.loads(text)
+                          return candidate
+                  except Exception:
+                      pass
+              return None
+
+          attempts = []
+
+          # Normal case: the three secrets are consecutive pieces of one base64 string.
+          joined = ''.join(chunks)
+          try:
+              attempts.append(('joined-base64', decode_b64(joined)))
+          except Exception as exc:
+              print(f'joined-base64 decode failed: {type(exc).__name__}')
+
+          # Also support secrets that were each base64-encoded separately before being split.
+          try:
+              pieces = [decode_b64(x) for x in chunks]
+              attempts.append(('per-secret-base64', b''.join(pieces)))
+          except Exception as exc:
+              print(f'per-secret-base64 decode failed: {type(exc).__name__}')
+
+          # Finally, support the first secret being the complete state by itself.
+          if chunks:
+              try:
+                  attempts.append(('first-secret-only', decode_b64(chunks[0])))
+              except Exception:
+                  pass
+
+          normalized = None
+          method = None
+          for name, raw in attempts:
+              candidate = valid(raw)
+              if candidate is not None:
+                  normalized = candidate
+                  method = name
+                  break
+
+          if normalized is None:
+              raise SystemExit('Tistory storage-state secrets are present but none of the supported encodings produced valid JSON/gzip(JSON). Refresh the Tistory session state and replace the three secrets.')
+
+          encoded = base64.b64encode(normalized).decode('ascii')
+          print(f'Validated Tistory storage state using {method}; normalized length={len(encoded)}.')
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as f:
+              f.write('TISTORY_STORAGE_STATE_1<<TISTORY_STATE\n')
+              f.write(encoded + '\n')
+              f.write('TISTORY_STATE\n')
+              f.write('TISTORY_STORAGE_STATE_2=\n')
+              f.write('TISTORY_STORAGE_STATE_3=\n')
+          PY
       - name: Run publisher
         if: github.event_name != 'push' || env.PUBLISH_ASSISTANT == 'true'
         run: python src/main.py
