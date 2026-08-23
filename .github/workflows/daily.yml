@@ -25,6 +25,7 @@ on:
   push:
     paths:
       - '.github/publish-trigger.json'
+      - '.github/workflows/daily.yml'
 
 permissions:
   contents: read
