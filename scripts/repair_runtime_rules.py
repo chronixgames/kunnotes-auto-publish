@@ -8,7 +8,9 @@ text = path.read_text(encoding="utf-8")
 def replace_function(source: str, name: str, replacement: str) -> str:
     pattern = rf"(?ms)^def {re.escape(name)}\(.*?(?=^def |^if __name__ ==|\Z)"
     if re.search(pattern, source):
-        return re.sub(pattern, replacement.rstrip() + "\n\n", source, count=1)
+        # Use a callable replacement so backslashes inside regex-heavy Python
+        # source are not interpreted as re.sub replacement escapes.
+        return re.sub(pattern, lambda _m: replacement.rstrip() + "\n\n", source, count=1)
     marker = "\ndef normalize_tags(raw_tags):\n"
     if marker not in source:
         raise SystemExit(f"{marker.strip()} marker not found while repairing {name}")
