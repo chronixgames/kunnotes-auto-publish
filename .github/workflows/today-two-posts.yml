@@ -1,0 +1,103 @@
+name: Today Two Posts
+
+on:
+  schedule:
+    - cron: '0 0 24 8 *'
+    - cron: '0 6 24 8 *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Seoul
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      TISTORY_BLOG_NAME: ${{ secrets.TISTORY_BLOG_NAME }}
+      TISTORY_STORAGE_STATE_1: ${{ secrets.TISTORY_STORAGE_STATE }}
+      TISTORY_STORAGE_STATE_2: ${{ secrets.TISTORY_STORAGE_STATE_1 }}
+      TISTORY_STORAGE_STATE_3: ${{ secrets.TISTORY_STORAGE_STATE_2 }}
+      OPENAI_MODEL: gpt-5.2
+      DRY_RUN: 'false'
+      PUBLISH_ASSISTANT: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Wait random time inside today's window
+        run: |
+          python - <<'PY'
+          import random, time
+          print('Random delay:', end=' ')
+          delay = random.randint(0, 7200)
+          print(delay, 'seconds')
+          time.sleep(delay)
+          PY
+      - name: Set topic
+        run: |
+          if [ "${{ github.event.schedule }}" = "0 0 24 8 *" ]; then
+            echo 'FORCE_TOPIC=2026년 하반기 재테크 핵심 전략: 지금 준비해야 할 투자 포트폴리오' >> "$GITHUB_ENV"
+          else
+            echo 'FORCE_TOPIC=현금흐름을 키우는 투자 방법: 월급 외 수익을 만드는 현실적인 전략' >> "$GITHUB_ENV"
+          fi
+          echo 'IMAGE_URLS=' >> "$GITHUB_ENV"
+      - name: Apply Kunnotes post rules
+        run: python scripts/apply_post_rules.py
+      - name: Apply final Kunnotes formatting rules
+        run: python scripts/apply_final_rules.py
+      - name: Disable tables for text-first posts
+        run: python scripts/disable_tables.py
+      - name: Enforce final media and closing rules
+        run: python scripts/enforce_media_rules.py
+      - name: Repair runtime publisher rules
+        run: python scripts/repair_runtime_rules.py
+      - run: pip install -r requirements.txt
+      - name: Install Playwright Chromium
+        run: python -m playwright install --with-deps chromium
+      - name: Normalize Tistory storage state
+        env:
+          STATE_A: ${{ secrets.TISTORY_STORAGE_STATE }}
+          STATE_B: ${{ secrets.TISTORY_STORAGE_STATE_1 }}
+          STATE_C: ${{ secrets.TISTORY_STORAGE_STATE_2 }}
+        run: |
+          python - <<'PY'
+          import base64, gzip, json, os
+          chunks = [''.join(x.split()) for x in [os.environ.get('STATE_A',''),os.environ.get('STATE_B',''),os.environ.get('STATE_C','')] if x.strip()]
+          def dec(v): return base64.b64decode(v + '=' * (-len(v) % 4), validate=True)
+          def valid(raw):
+              candidates=[raw]
+              if raw[:2]==b'\x1f\x8b':
+                  try: candidates.insert(0,gzip.decompress(raw))
+                  except Exception: pass
+              for c in candidates:
+                  try:
+                      json.loads(c.decode('utf-8').strip())
+                      return c
+                  except Exception: pass
+              return None
+          attempts=[]
+          try: attempts.append(dec(''.join(chunks)))
+          except Exception: pass
+          try: attempts.append(b''.join(dec(x) for x in chunks))
+          except Exception: pass
+          try: attempts.append(dec(chunks[0]))
+          except Exception: pass
+          normalized=next((valid(x) for x in attempts if valid(x) is not None),None)
+          if normalized is None:
+              raise SystemExit('Invalid Tistory storage state')
+          encoded=base64.b64encode(normalized).decode('ascii')
+          with open(os.environ['GITHUB_ENV'],'a') as f:
+              f.write('TISTORY_STORAGE_STATE_1<<STATE\n'+encoded+'\nSTATE\n')
+              f.write('TISTORY_STORAGE_STATE_2=\nTISTORY_STORAGE_STATE_3=\n')
+          PY
+      - name: Run publisher
+        run: python src/main.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: today-post-${{ github.run_id }}
+          path: out/today.json
+          retention-days: 7
