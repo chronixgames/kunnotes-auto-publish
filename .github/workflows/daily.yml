@@ -2,9 +2,10 @@ name: Kunnotes Daily Publisher
 
 on:
   schedule:
+    # 08:00-08:59 KST (GitHub cron is UTC)
     - cron: '0 23 * * *'
-    - cron: '0 3 * * *'
-    - cron: '0 12 * * *'
+    # 15:00-15:59 KST
+    - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
       publish:
@@ -96,11 +97,8 @@ jobs:
             '0 23 * * *')
               echo 'POST_INDEX=0' >> "$GITHUB_ENV"
               ;;
-            '0 3 * * *')
+            '0 6 * * *')
               echo 'POST_INDEX=1' >> "$GITHUB_ENV"
-              ;;
-            '0 12 * * *')
-              echo 'POST_INDEX=2' >> "$GITHUB_ENV"
               ;;
             *)
               echo 'POST_INDEX=0' >> "$GITHUB_ENV"
@@ -141,22 +139,18 @@ jobs:
               return None
 
           attempts = []
-
-          # Normal case: the three secrets are consecutive pieces of one base64 string.
           joined = ''.join(chunks)
           try:
               attempts.append(('joined-base64', decode_b64(joined)))
           except Exception as exc:
               print(f'joined-base64 decode failed: {type(exc).__name__}')
 
-          # Also support secrets that were each base64-encoded separately before being split.
           try:
               pieces = [decode_b64(x) for x in chunks]
               attempts.append(('per-secret-base64', b''.join(pieces)))
           except Exception as exc:
               print(f'per-secret-base64 decode failed: {type(exc).__name__}')
 
-          # Finally, support the first secret being the complete state by itself.
           if chunks:
               try:
                   attempts.append(('first-secret-only', decode_b64(chunks[0])))
@@ -184,9 +178,58 @@ jobs:
               f.write('TISTORY_STORAGE_STATE_2=\n')
               f.write('TISTORY_STORAGE_STATE_3=\n')
           PY
+      - name: Check Tistory login session
+        run: |
+          python - <<'PY'
+          import os, sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path('src').resolve()))
+          from publisher import _load_state
+          from playwright.sync_api import sync_playwright
+
+          blog = os.environ.get('TISTORY_BLOG_NAME', 'kunnotes').strip()
+          state_path = _load_state()
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True)
+              context = browser.new_context(storage_state=str(state_path))
+              page = context.new_page()
+              try:
+                  page.goto(f'https://{blog}.tistory.com/manage/newpost/?type=post', wait_until='domcontentloaded', timeout=60000)
+                  page.wait_for_timeout(2000)
+                  url = page.url.lower()
+                  if 'login' in url or 'accounts.kakao' in url:
+                      raise SystemExit('TISTORY_SESSION_EXPIRED: Tistory/Kakao login session has expired. Refresh the Tistory session and replace the three storage-state secrets.')
+                  title = page.locator("#post-title-inp, input[placeholder*='제목'], input[name='title']").first
+                  title.wait_for(state='visible', timeout=20000)
+                  print('TISTORY_SESSION_OK=true')
+              finally:
+                  browser.close()
+          PY
       - name: Run publisher
         if: github.event_name != 'push' || env.PUBLISH_ASSISTANT == 'true'
-        run: python src/main.py
+        run: |
+          python - <<'PY'
+          import os, random, sys, time
+          from datetime import datetime, timedelta
+          from zoneinfo import ZoneInfo
+
+          sys.path.insert(0, 'src')
+          import main
+
+          KST = ZoneInfo('Asia/Seoul')
+          index = int(os.getenv('POST_INDEX', '0'))
+          start_hour = 8 if index == 0 else 15
+          now = datetime.now(KST)
+          start = now.replace(hour=start_hour, minute=0, second=0, microsecond=0)
+          target = start + timedelta(minutes=random.randint(0, 59), seconds=random.randint(0, 59))
+          if target > now:
+              delay = (target - now).total_seconds()
+              print(f'WAITING_FOR_RANDOM_SLOT={target.isoformat()}')
+              time.sleep(delay)
+
+          main.wait_for_random_slot = lambda day, window: datetime.now(KST)
+          main.main()
+          PY
       - uses: actions/upload-artifact@v4
         if: github.event_name != 'push' || env.PUBLISH_ASSISTANT == 'true'
         with:
@@ -194,6 +237,10 @@ jobs:
           path: out/today.json
           retention-days: 7
 
-# Scheduled runs automatically publish one post per slot.
+# Scheduled runs publish exactly two posts per day.
+# Morning: random minute between 08:00-08:59 KST.
+# Afternoon: random minute between 15:00-15:59 KST.
+# The session is checked before article generation/publishing; an expired session
+# stops the run with a clear TISTORY_SESSION_EXPIRED error.
 # Manual runs are DRY_RUN by default; enable the "publish" checkbox for a real Tistory post.
 # Assistant-triggered runs publish when .github/republish-trigger.json is enabled and committed or updated.
