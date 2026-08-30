@@ -222,10 +222,12 @@ jobs:
           now = datetime.now(KST)
           start = now.replace(hour=start_hour, minute=0, second=0, microsecond=0)
           target = start + timedelta(minutes=random.randint(0, 59), seconds=random.randint(0, 59))
-          if target > now:
+          if target > now and os.getenv('GITHUB_EVENT_NAME') != 'workflow_dispatch':
               delay = (target - now).total_seconds()
               print(f'WAITING_FOR_RANDOM_SLOT={target.isoformat()}')
               time.sleep(delay)
+          elif os.getenv('GITHUB_EVENT_NAME') == 'workflow_dispatch':
+              print('MANUAL_TEST_IMMEDIATE=true')
 
           main.wait_for_random_slot = lambda day, window: datetime.now(KST)
           main.main()
