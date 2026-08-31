@@ -2,6 +2,7 @@ import os
 import random
 import time
 import json
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -14,32 +15,65 @@ KST = ZoneInfo("Asia/Seoul")
 DAYS = int(os.environ.get("RESERVE_DAYS", "30"))
 POSTS_PER_DAY = 2
 
+# Existing posts are already reserved through 2026-09-12.
+# Start this new batch on 2026-09-13 and reserve 30 days x 2 posts.
+START_DATE = datetime(2026, 9, 13, tzinfo=KST).date()
+
+# Keep Pixabay image IDs unique across the entire 60-post batch.
+_USED_IMAGE_IDS = set()
+_ORIGINAL_FETCH_IMAGES = base.main.fetch_pixabay_images
+
+
+def _image_id(path):
+    match = re.search(r"-(\d+)\.jpg$", str(path))
+    return match.group(1) if match else None
+
+
+def fetch_unique_pixabay_images(keywords, title):
+    """Generate images while preventing Pixabay image-ID reuse across posts."""
+    selected = []
+    for attempt in range(8):
+        retry_title = title if attempt == 0 else f"{title} image batch {attempt + 1}"
+        candidates = _ORIGINAL_FETCH_IMAGES(keywords, retry_title) or []
+        for path in candidates:
+            image_id = _image_id(path)
+            if image_id and image_id in _USED_IMAGE_IDS:
+                try:
+                    Path(path).unlink(missing_ok=True)
+                except Exception:
+                    pass
+                continue
+            if image_id:
+                _USED_IMAGE_IDS.add(image_id)
+            selected.append(path)
+            if len(selected) >= 3:
+                return selected
+    return selected
+
+
+# article() resolves fetch_pixabay_images from the main module namespace.
+base.main.fetch_pixabay_images = fetch_unique_pixabay_images
+
 
 def build_random_schedule(days: int):
     """Create two daily reservation slots with varied minutes.
 
     Morning: 08:00-08:59 KST
     Afternoon: 15:00-15:59 KST
-    Every post gets a different minute across the full 60-post month.
+    Every post gets a different minute across the full 60-post batch.
     """
-    now = datetime.now(KST)
-    first_day = now.date()
+    if days * POSTS_PER_DAY > 60:
+        raise RuntimeError("Unique-minute schedule supports at most 60 posts per batch")
 
-    # If today's afternoon window has already passed, start tomorrow.
-    if now >= now.replace(hour=16, minute=0, second=0, microsecond=0):
-        first_day += timedelta(days=1)
-
-    # 60 posts -> use each minute 00-59 exactly once across the month.
     minutes = list(range(60))
-    random.shuffle(minutes)
+    random.SystemRandom().shuffle(minutes)
     schedule = []
 
     for day in range(days):
-        d = first_day + timedelta(days=day)
-        mm = minutes[day * 2]
+        d = START_DATE + timedelta(days=day)
+        am = minutes[day * 2]
         pm = minutes[day * 2 + 1]
-
-        schedule.append(datetime(d.year, d.month, d.day, 8, mm, tzinfo=KST))
+        schedule.append(datetime(d.year, d.month, d.day, 8, am, tzinfo=KST))
         schedule.append(datetime(d.year, d.month, d.day, 15, pm, tzinfo=KST))
 
     return schedule
@@ -54,6 +88,9 @@ def main_reserve():
 
     schedule = build_random_schedule(DAYS)
     print(f"RESERVATION_PLAN={len(schedule)} posts from {schedule[0].isoformat()} to {schedule[-1].isoformat()}")
+    print("RESERVATION_RULE=after 2026-09-12 existing posts")
+    print("TIME_RULE=08:00-08:59 and 15:00-15:59; every minute unique across all 60 posts")
+    print("IMAGE_RULE=Pixabay image IDs unique across all 60 posts")
     for i, when in enumerate(schedule, start=1):
         print(f"SCHEDULE_{i:02d}={when.isoformat()}")
 
@@ -90,10 +127,13 @@ def main_reserve():
             "completed": planned - len(failures),
             "first": schedule[0].isoformat(),
             "last": schedule[-1].isoformat(),
+            "start_date": START_DATE.isoformat(),
             "randomized_times": True,
             "unique_minutes": True,
             "morning_window": "08:00-08:59",
             "afternoon_window": "15:00-15:59",
+            "unique_pixabay_image_ids": True,
+            "existing_posts_until": "2026-09-12",
         }, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
