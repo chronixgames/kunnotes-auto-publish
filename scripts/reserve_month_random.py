@@ -16,17 +16,17 @@ POSTS_PER_DAY = 2
 
 
 def build_random_schedule(days: int):
-    """Create two daily reservation slots with varied hours/minutes.
+    """Create two daily reservation slots with varied minutes.
 
-    Morning: 08:00-09:59 KST
-    Afternoon: 15:00-16:59 KST
+    Morning: 08:00-08:59 KST
+    Afternoon: 15:00-15:59 KST
     Every post gets a different minute across the full 60-post month.
     """
     now = datetime.now(KST)
     first_day = now.date()
 
     # If today's afternoon window has already passed, start tomorrow.
-    if now >= now.replace(hour=17, minute=0, second=0, microsecond=0):
+    if now >= now.replace(hour=16, minute=0, second=0, microsecond=0):
         first_day += timedelta(days=1)
 
     # 60 posts -> use each minute 00-59 exactly once across the month.
@@ -37,14 +37,10 @@ def build_random_schedule(days: int):
     for day in range(days):
         d = first_day + timedelta(days=day)
         mm = minutes[day * 2]
-        am = minutes[day * 2 + 1]
+        pm = minutes[day * 2 + 1]
 
-        # Vary the hour as well, while keeping the requested morning/afternoon windows.
-        mh = random.choice((8, 9))
-        ah = random.choice((15, 16))
-
-        schedule.append(datetime(d.year, d.month, d.day, mh, mm, tzinfo=KST))
-        schedule.append(datetime(d.year, d.month, d.day, ah, am, tzinfo=KST))
+        schedule.append(datetime(d.year, d.month, d.day, 8, mm, tzinfo=KST))
+        schedule.append(datetime(d.year, d.month, d.day, 15, pm, tzinfo=KST))
 
     return schedule
 
@@ -96,6 +92,8 @@ def main_reserve():
             "last": schedule[-1].isoformat(),
             "randomized_times": True,
             "unique_minutes": True,
+            "morning_window": "08:00-08:59",
+            "afternoon_window": "15:00-15:59",
         }, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
