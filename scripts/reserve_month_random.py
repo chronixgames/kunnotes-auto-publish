@@ -20,35 +20,28 @@ def build_random_schedule(days: int):
 
     Morning: 08:00-09:59 KST
     Afternoon: 15:00-16:59 KST
-    Minutes are randomized and prevented from repeating across the whole month
-    where possible, so posts do not all land on the same minute.
+    Every post gets a different minute across the full 60-post month.
     """
     now = datetime.now(KST)
     first_day = now.date()
 
-    # If today's afternoon slot has already passed, start tomorrow.
+    # If today's afternoon window has already passed, start tomorrow.
     if now >= now.replace(hour=17, minute=0, second=0, microsecond=0):
         first_day += timedelta(days=1)
 
-    used_minutes = set()
+    # 60 posts -> use each minute 00-59 exactly once across the month.
+    minutes = list(range(60))
+    random.shuffle(minutes)
     schedule = []
 
     for day in range(days):
         d = first_day + timedelta(days=day)
+        mm = minutes[day * 2]
+        am = minutes[day * 2 + 1]
 
-        # Keep each day visually distinct: random hour and minute in each window.
-        morning_choices = [(h, m) for h in (8, 9) for m in range(60)
-                            if (h, m) not in used_minutes]
-        afternoon_choices = [(h, m) for h in (15, 16) for m in range(60)
-                              if (h, m) not in used_minutes]
-        if not morning_choices or not afternoon_choices:
-            # This should never happen for a 30-day run, but keeps the script safe.
-            raise RuntimeError("Unable to create unique randomized reservation times")
-
-        mh, mm = random.choice(morning_choices)
-        used_minutes.add((mh, mm))
-        ah, am = random.choice([x for x in afternoon_choices if x[1] != mm] or afternoon_choices)
-        used_minutes.add((ah, am))
+        # Vary the hour as well, while keeping the requested morning/afternoon windows.
+        mh = random.choice((8, 9))
+        ah = random.choice((15, 16))
 
         schedule.append(datetime(d.year, d.month, d.day, mh, mm, tzinfo=KST))
         schedule.append(datetime(d.year, d.month, d.day, ah, am, tzinfo=KST))
@@ -102,6 +95,7 @@ def main_reserve():
             "first": schedule[0].isoformat(),
             "last": schedule[-1].isoformat(),
             "randomized_times": True,
+            "unique_minutes": True,
         }, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
