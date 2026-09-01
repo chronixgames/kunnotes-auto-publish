@@ -13,7 +13,7 @@ on:
       - '.github/reserve-month-trigger.json'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   reserve:
@@ -156,8 +156,21 @@ jobs:
                   browser.close()
           PY
 
-      - name: Reserve Sep 16-30 x 2 posts (unique randomized times and images)
-        run: python scripts/reserve_fixed_sep16.py
+      - name: Reserve Sep 13-Oct 12 x 2 posts
+        run: python scripts/reserve_month_random.py
+
+      - name: Save persistent image deduplication state
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/used_pixabay_image_ids.json
+          if git diff --cached --quiet; then
+            echo "No image-state changes to commit."
+          else
+            git commit -m "Update Pixabay image deduplication state"
+            git push
+          fi
 
       - name: Upload reservation result
         if: always()
