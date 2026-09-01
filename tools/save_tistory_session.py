@@ -4,7 +4,9 @@ from playwright.sync_api import sync_playwright
 OUT = Path("tistory-state.json")
 
 with sync_playwright() as p:
-    browser = p.chromium.launch(headless=False)
+    # Use the Chrome browser already installed on Windows instead of
+    # Playwright-managed Chromium, which may be unavailable locally.
+    browser = p.chromium.launch(channel="chrome", headless=False)
     context = browser.new_context()
     page = context.new_page()
     page.goto("https://www.tistory.com/auth/login", wait_until="domcontentloaded")
