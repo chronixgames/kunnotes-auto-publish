@@ -156,8 +156,8 @@ jobs:
                   browser.close()
           PY
 
-      - name: Reserve 30 days x 2 posts (randomized times)
-        run: python scripts/reserve_month_random.py
+      - name: Reserve Sep 16-30 x 2 posts (unique randomized times and images)
+        run: python scripts/reserve_fixed_sep16.py
 
       - name: Upload reservation result
         if: always()
