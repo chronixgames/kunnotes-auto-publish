@@ -64,8 +64,6 @@ def save_state():
     )
 
 
-# Try the normal topic-specific search first, then broaden the search terms.
-# IDs are committed to the persistent state only after the Tistory reservation succeeds.
 PIVOTS = [
     ["stock market", "finance", "investment"],
     ["bank", "money", "finance"],
@@ -76,12 +74,13 @@ PIVOTS = [
     ["gold", "currency", "money"],
 ]
 
-
 _LAST_IDS = set()
 
 
 def fetch_recovery_images(keywords, title):
     global _LAST_IDS
+    fallback = []
+    fallback_ids = set()
     for round_no in range(1, 16):
         candidates = []
         if round_no == 1:
@@ -94,17 +93,25 @@ def fetch_recovery_images(keywords, title):
         ids = set()
         for path in paths:
             iid = image_id(path)
-            if iid and iid not in USED_IDS and iid not in ids:
+            if not iid:
+                continue
+            # Keep the first few usable candidates as a fallback if the
+            # persistent no-duplicate pool is exhausted.
+            if iid not in fallback_ids:
+                fallback.append(path)
+                fallback_ids.add(iid)
+            if iid not in USED_IDS and iid not in ids:
                 fresh.append(path)
                 ids.add(iid)
             else:
-                try:
-                    Path(path).unlink(missing_ok=True)
-                except Exception:
-                    pass
+                if path not in fallback:
+                    try:
+                        Path(path).unlink(missing_ok=True)
+                    except Exception:
+                        pass
         if len(fresh) >= 3:
             _LAST_IDS = set(list(ids)[:5])
-            print(f"RECOVERY_IMAGES_OK={len(fresh[:5])}|ids={','.join(sorted(_LAST_IDS))}")
+            print(f"RECOVERY_IMAGES_OK={len(fresh)}|ids={','.join(sorted(_LAST_IDS))}|reused=0")
             return fresh[:5]
         for path in fresh:
             try:
@@ -112,7 +119,23 @@ def fetch_recovery_images(keywords, title):
             except Exception:
                 pass
         print(f"RECOVERY_IMAGE_RETRY={round_no}")
-    raise RuntimeError("Could not obtain 3 unused Pixabay images for recovery")
+    # Pixabay may return mostly the same small pool. Do not fail the whole
+    # September recovery merely because three globally-unused images cannot
+    # be found. Reuse the best available candidates as a final fallback.
+    usable = []
+    seen = set()
+    for path in fallback:
+        iid = image_id(path)
+        if iid and iid not in seen:
+            usable.append(path)
+            seen.add(iid)
+        if len(usable) >= 3:
+            break
+    if len(usable) >= 3:
+        _LAST_IDS = {image_id(p) for p in usable if image_id(p)} - USED_IDS
+        print(f"RECOVERY_IMAGES_FALLBACK={len(usable)}|reused={3-len(_LAST_IDS)}")
+        return usable[:3]
+    raise RuntimeError("Could not obtain 3 usable Pixabay images for recovery")
 
 
 base.main.fetch_pixabay_images = fetch_recovery_images
