@@ -8,6 +8,14 @@ on:
         required: true
         default: '30'
         type: string
+      mode:
+        description: 'Reservation mode'
+        required: true
+        default: 'recovery'
+        type: choice
+        options:
+          - recovery
+          - full
   push:
     paths:
       - '.github/reserve-month-trigger.json'
@@ -30,6 +38,7 @@ jobs:
       TISTORY_STORAGE_STATE_3: ${{ secrets.TISTORY_STORAGE_STATE_2 }}
       OPENAI_MODEL: gpt-5.2
       RESERVE_DAYS: ${{ inputs.days || '30' }}
+      RESERVE_MODE: ${{ inputs.mode || 'full' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -156,7 +165,12 @@ jobs:
                   browser.close()
           PY
 
-      - name: Reserve Sep 13-Oct 12 x 2 posts
+      - name: Recover failed September reservations only
+        if: ${{ inputs.mode == 'recovery' }}
+        run: python scripts/reserve_recovery_sep.py
+
+      - name: Reserve full month
+        if: ${{ inputs.mode != 'recovery' }}
         run: python scripts/reserve_month_random.py
 
       - name: Save persistent image deduplication state
