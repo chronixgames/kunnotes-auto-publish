@@ -75,6 +75,7 @@ def _save_used_image_ids():
 
 
 def fetch_unique_pixabay_images(keywords, title):
+    best, best_ids = [], set()
     for attempt in range(12):
         retry_title = title if attempt == 0 else f"{title} image batch {attempt + 1}"
         candidates = _ORIGINAL_FETCH_IMAGES(keywords, retry_title) or []
@@ -93,17 +94,102 @@ def fetch_unique_pixabay_images(keywords, title):
             _USED_IMAGE_IDS.update(candidate_ids)
             _save_used_image_ids()
             print(f"UNIQUE_IMAGES_OK={len(fresh[:5])}|ids={','.join(sorted(candidate_ids))}")
+            for path in best:
+                try:
+                    Path(path).unlink(missing_ok=True)
+                except Exception:
+                    pass
             return fresh[:5]
-        for path in fresh:
-            try:
-                Path(path).unlink(missing_ok=True)
-            except Exception:
-                pass
+        # Keep the best partial batch seen so far instead of discarding it — if no
+        # attempt ever reaches 3 unique images, we still publish with what we have
+        # (including zero) rather than failing the whole post over images.
+        if len(fresh) > len(best):
+            for path in best:
+                try:
+                    Path(path).unlink(missing_ok=True)
+                except Exception:
+                    pass
+            best, best_ids = fresh, candidate_ids
+        else:
+            for path in fresh:
+                try:
+                    Path(path).unlink(missing_ok=True)
+                except Exception:
+                    pass
         print(f"DUPLICATE_IMAGE_RETRY={attempt + 1}")
-    raise RuntimeError("Could not obtain at least 3 unused Pixabay images after 12 attempts")
+
+    if best:
+        _USED_IMAGE_IDS.update(best_ids)
+        _save_used_image_ids()
+        print(f"UNIQUE_IMAGES_PARTIAL={len(best)}|ids={','.join(sorted(best_ids))}")
+    else:
+        print("UNIQUE_IMAGES_NONE=0|publishing without images")
+    return best
 
 
 base.main.fetch_pixabay_images = fetch_unique_pixabay_images
+
+# ---------------------------------------------------------------------------
+# Calendar month-navigation fix.
+#
+# Tistory's reservation dialog always opens showing the REAL current month
+# (September, while this runs), never the target month, and the original
+# reserve_month.py's _schedule_in_dialog never clicks the calendar forward —
+# it only checked whether the default date already matched the target month
+# and raised immediately otherwise. That made every October-dated reservation
+# fail 100% of the time while running in September. This overrides that
+# private helper (same monkeypatch pattern as the image de-dup above) with a
+# version that actually clicks the month's next/prev arrows until it reaches
+# the target month before picking the day.
+# ---------------------------------------------------------------------------
+
+
+def _advance_calendar_to_month(page, when):
+    heading = page.get_by_text(re.compile(r"^\d{4}년\s*\d{1,2}월$")).first
+    heading.wait_for(state="visible", timeout=10000)
+
+    row = heading.locator("xpath=..")
+    buttons = row.locator("button")
+    if buttons.count() < 2:
+        row = row.locator("xpath=..")
+        buttons = row.locator("button")
+    if buttons.count() < 2:
+        raise RuntimeError("Could not locate calendar prev/next month buttons")
+    prev_button = buttons.first
+    next_button = buttons.last
+
+    for _ in range(36):
+        text = heading.inner_text().strip()
+        m = re.match(r"(\d{4})년\s*(\d{1,2})월", text)
+        if not m:
+            raise RuntimeError(f"Could not parse calendar header text: {text!r}")
+        cur_year, cur_month = int(m.group(1)), int(m.group(2))
+        if (cur_year, cur_month) == (when.year, when.month):
+            return
+        if (cur_year, cur_month) < (when.year, when.month):
+            next_button.click()
+        else:
+            prev_button.click()
+        page.wait_for_timeout(250)
+    raise RuntimeError(f"Could not navigate Tistory calendar to target month: {when:%Y-%m}")
+
+
+def _schedule_in_dialog_fixed(page, when):
+    page.get_by_role("button", name="예약", exact=True).click()
+    page.wait_for_timeout(300)
+
+    date_button = page.get_by_role("button", name=re.compile(r"^\d{4}-\d{2}-\d{2}$"))
+    date_button.first.wait_for(state="visible", timeout=10000)
+    date_button.first.click()
+
+    _advance_calendar_to_month(page, when)
+
+    page.get_by_role("table", name="일주일요일과 한달날짜").get_by_role("button", name=str(when.day), exact=True).click()
+    page.get_by_role("spinbutton", name="시간").fill(str(when.hour))
+    page.get_by_role("spinbutton", name="분").fill(str(when.minute))
+
+
+base._schedule_in_dialog = _schedule_in_dialog_fixed
 
 # ---------------------------------------------------------------------------
 # Scheduling: 3 posts/day, each in its own window, random hour+minute, and the
