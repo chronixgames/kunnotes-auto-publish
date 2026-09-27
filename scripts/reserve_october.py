@@ -433,6 +433,21 @@ def main_reserve():
                     base.reserve_one(page, post, when)
                     if alert_state["seen"]:
                         raise RuntimeError(f"TISTORY_ALERT|{alert_state['message']}")
+                    # reserve_one()'s own "RESERVED=" log only means the submit
+                    # button detached/timed out — it does NOT confirm Tistory
+                    # actually saved a new scheduled post (this is exactly how
+                    # the earlier 93/93-fake-success incident slipped through).
+                    # After a genuine successful "공개 발행", Tistory navigates
+                    # away from the /manage/newpost/ editor URL. If we're still
+                    # sitting on that editor URL, nothing was really saved —
+                    # treat it as a real failure instead of trusting the log.
+                    post_check_url = page.url
+                    print(f"POST_SUBMIT_URL={post_check_url}")
+                    if "newpost" in post_check_url.lower():
+                        raise RuntimeError(
+                            f"PUBLISH_NOT_CONFIRMED|still on the new-post editor URL after submit "
+                            f"(no navigation away): {post_check_url}"
+                        )
                     time.sleep(1.5)
                 except Exception as exc:
                     failures.append({"index": idx, "when": when.isoformat(), "title": topic.get("title", ""), "error": str(exc)})
