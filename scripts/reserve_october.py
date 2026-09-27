@@ -357,11 +357,22 @@ def main_reserve():
         # looks like it "succeeded" (button detaches, no exception) even though
         # nothing was actually saved. Capture the dialog text so the loop can
         # detect it and fail loudly instead of silently logging false successes.
+        #
+        # Tistory also shows OTHER, harmless dialogs during this flow — e.g. an
+        # autosave-recovery confirm() like "2026. 9. 25. 19:27에 저장된 글이 있습니다.
+        # 이어서 작성하시겠습니까?" when opening a new post while a draft already
+        # exists. Those must be accepted (so the page doesn't hang) but must NOT
+        # be treated as the daily limit — only the literal daily-limit phrase
+        # should ever abort the run.
+        DAILY_LIMIT_PHRASE = "하루에 작성할 수 있는 글"
         alert_state = {"seen": False, "message": ""}
 
         def _on_dialog(dialog):
-            alert_state["seen"] = True
-            alert_state["message"] = dialog.message
+            if DAILY_LIMIT_PHRASE in (dialog.message or ""):
+                alert_state["seen"] = True
+                alert_state["message"] = dialog.message
+            else:
+                print(f"DIALOG_IGNORED={dialog.message!r}")
             try:
                 dialog.accept()
             except Exception:
@@ -384,7 +395,7 @@ def main_reserve():
                     print(f"RESERVE_FAILED={idx}|{type(exc).__name__}|{exc}")
                     if "TISTORY_SESSION_EXPIRED" in str(exc):
                         break
-                    if "하루에 작성할 수 있는 글" in str(exc) or "TISTORY_ALERT" in str(exc):
+                    if DAILY_LIMIT_PHRASE in str(exc):
                         print(
                             "DAILY_POST_LIMIT_REACHED=true; Tistory only allows a fixed number of NEW posts to be "
                             "created per real calendar day, regardless of the future date being scheduled. "
