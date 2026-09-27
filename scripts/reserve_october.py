@@ -350,17 +350,47 @@ def main_reserve():
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(storage_state=str(state_path))
         page = context.new_page()
+
+        # Tistory throws a native JS alert() when a daily post-creation limit is
+        # hit ("하루에 작성할 수 있는 글은 최대 50개까지입니다"). Playwright auto-dismisses
+        # unhandled alerts, so without this listener the reservation click still
+        # looks like it "succeeded" (button detaches, no exception) even though
+        # nothing was actually saved. Capture the dialog text so the loop can
+        # detect it and fail loudly instead of silently logging false successes.
+        alert_state = {"seen": False, "message": ""}
+
+        def _on_dialog(dialog):
+            alert_state["seen"] = True
+            alert_state["message"] = dialog.message
+            try:
+                dialog.accept()
+            except Exception:
+                pass
+
+        page.on("dialog", _on_dialog)
+
         try:
             for idx, (topic, when) in enumerate(zip(topics, schedule), start=1):
                 print(f"[{idx}/{planned}] target={when.isoformat()} topic={topic['title']}")
+                alert_state["seen"] = False
                 try:
                     post = base.main.article(topic)
                     base.reserve_one(page, post, when)
+                    if alert_state["seen"]:
+                        raise RuntimeError(f"TISTORY_ALERT|{alert_state['message']}")
                     time.sleep(1.5)
                 except Exception as exc:
                     failures.append({"index": idx, "when": when.isoformat(), "title": topic.get("title", ""), "error": str(exc)})
                     print(f"RESERVE_FAILED={idx}|{type(exc).__name__}|{exc}")
                     if "TISTORY_SESSION_EXPIRED" in str(exc):
+                        break
+                    if "하루에 작성할 수 있는 글" in str(exc) or "TISTORY_ALERT" in str(exc):
+                        print(
+                            "DAILY_POST_LIMIT_REACHED=true; Tistory only allows a fixed number of NEW posts to be "
+                            "created per real calendar day, regardless of the future date being scheduled. "
+                            "Stopping here instead of wasting the remaining attempts — resume tomorrow with "
+                            f"start_offset_days around day {START_OFFSET_DAYS + (idx - 1) // POSTS_PER_DAY}."
+                        )
                         break
         finally:
             browser.close()
