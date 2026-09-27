@@ -389,12 +389,18 @@ def main_reserve():
         # nothing was actually saved. Capture the dialog text so the loop can
         # detect it and fail loudly instead of silently logging false successes.
         #
-        # Tistory also shows OTHER, harmless dialogs during this flow — e.g. an
-        # autosave-recovery confirm() like "2026. 9. 25. 19:27에 저장된 글이 있습니다.
-        # 이어서 작성하시겠습니까?" when opening a new post while a draft already
-        # exists. Those must be accepted (so the page doesn't hang) but must NOT
-        # be treated as the daily limit — only the literal daily-limit phrase
-        # should ever abort the run.
+        # Tistory also shows OTHER, harmless-LOOKING dialogs during this flow —
+        # e.g. an autosave-recovery confirm() like "2026. 9. 25. 19:27에 저장된
+        # 글이 있습니다. 이어서 작성하시겠습니까?" when opening a new post while an
+        # old autosaved draft still exists. Accepting (= "이어서 작성", yes,
+        # continue) turns out NOT to be harmless: it loads that single old draft
+        # into the editor instead of a fresh post, so every iteration ends up
+        # overwriting the SAME draft slot over and over instead of creating a
+        # new post each time — which is exactly why the run kept logging
+        # "RESERVED=..." success while 글 관리's total count never moved.
+        # Dismissing (= "아니오", start fresh) gives a genuinely new, empty post
+        # every time, which is what this script actually needs. Only the literal
+        # daily-limit phrase should ever abort the run.
         DAILY_LIMIT_PHRASE = "하루에 작성할 수 있는 글"
         alert_state = {"seen": False, "message": ""}
 
@@ -402,12 +408,19 @@ def main_reserve():
             if DAILY_LIMIT_PHRASE in (dialog.message or ""):
                 alert_state["seen"] = True
                 alert_state["message"] = dialog.message
+                try:
+                    dialog.accept()
+                except Exception:
+                    pass
             else:
-                print(f"DIALOG_IGNORED={dialog.message!r}")
-            try:
-                dialog.accept()
-            except Exception:
-                pass
+                print(f"DIALOG_DISMISSED={dialog.message!r}")
+                try:
+                    dialog.dismiss()
+                except Exception:
+                    try:
+                        dialog.accept()
+                    except Exception:
+                        pass
 
         page.on("dialog", _on_dialog)
 
