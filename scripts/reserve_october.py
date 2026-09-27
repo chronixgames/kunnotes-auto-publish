@@ -192,6 +192,37 @@ def _schedule_in_dialog_fixed(page, when):
 base._schedule_in_dialog = _schedule_in_dialog_fixed
 
 # ---------------------------------------------------------------------------
+# Tag-input fix.
+#
+# publisher._fill_tags() checks page.locator(...).count() the INSTANT it's
+# called, with no wait at all — if the tag input hasn't finished rendering
+# yet (e.g. right after Tistory's harmless "저장된 글이 있습니다. 이어서
+# 작성하시겠습니까?" autosave-recovery dialog delays the editor), it raises
+# immediately and fails the whole post, even though the field would have
+# shown up a moment later. Tags are cosmetic — the user classifies every
+# post manually anyway — so this wraps the original with a real wait and,
+# if the field genuinely never appears, skips tagging instead of failing
+# the post.
+# ---------------------------------------------------------------------------
+
+_ORIGINAL_FILL_TAGS = base._fill_tags
+
+
+def _fill_tags_tolerant(page, tags):
+    if not tags:
+        return
+    tag_input = page.locator("#tagText, input[placeholder*='태그'], input[placeholder*='tag']").first
+    try:
+        tag_input.wait_for(state="visible", timeout=8000)
+    except Exception:
+        print("TAGS_SKIPPED=tag input not found after wait; continuing without tags")
+        return
+    _ORIGINAL_FILL_TAGS(page, tags)
+
+
+base._fill_tags = _fill_tags_tolerant
+
+# ---------------------------------------------------------------------------
 # Scheduling: 3 posts/day, each in its own window, random hour+minute, and the
 # random draw is independent per day (so consecutive days don't line up).
 # ---------------------------------------------------------------------------
